@@ -16,10 +16,12 @@ app.use(cors({
 app.use(express.json())
 
 const authRouter= require("./routes/auth");
-const ClientProfileRouter = require("./routes/client")
+const clientProfileRouter = require("./routes/client")
+const  workerProfileRouter = require("./routes/worker")
 
 app.use("/auth",authRouter)
-app.use("/client",ClientProfileRouter)
+app.use("/client",clientProfileRouter)
+app.use("/worker",workerProfileRouter)
 
 
 connectDB()
