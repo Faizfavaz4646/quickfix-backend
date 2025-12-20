@@ -1,60 +1,81 @@
 const mongoose = require("mongoose");
 
-const workerProfileSchema = new mongoose.Schema({
-
-    userId :{
-        type: mongoose.Schema.Types.ObjectId,
-        ref:"User",
-        required: true,
-        unique: true,
-        index:true,
-    },
-    profession :{
-        type:String,
-        required: true,
-        trim:true,
+const workerProfileSchema = new mongoose.Schema(
+  {
+  
+    // RELATION
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+      unique: true,
+      index: true,
     },
 
-    phone:{
-        type:String,
-        required: true,
+    profession: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+
+    phone: {
+      type: String,
+      required: true,
+      match: /^[0-9]{10}$/, 
     },
 
     gender: {
-        type:String,
-        required: true,
-        enum:["male","female","other"],
+      type: String,
+      enum: ["male", "female", "other"],
+      required: true,
     },
 
-    state: String,
-    district: String,
-    city: String,
+    state: {
+      type: String,
+      trim: true,
+    },
+
+    district: {
+      type: String,
+      trim: true,
+    },
+
+    city: {
+      type: String,
+      trim: true,
+    },
 
     zip: {
-        type:String,
-        maxlength:6,
-
+      type: String,
+      match: /^[0-9]{6}$/, 
     },
 
-    schedule : {
-        type:String,
 
+    // WORK DETAILS
+    
+    schedule: {
+      type: String,
+      trim: true,
     },
 
     profilePic: {
-        type:String,
-
+      type: String,
     },
-    previousWorkImages : [
-        {
+
+    previousWorkImages: [
+      {
         type: String,
       },
-],
-    requests :[
-        {
-            type:mongoose.Schema.Types.ObjectId,
-            ref : "JobRequest",
-        },
+    ],
+
+  
+    // JOB FLOW
+
+    requests: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "JobRequest",
+      },
     ],
 
     activeJobs: [
@@ -64,17 +85,22 @@ const workerProfileSchema = new mongoose.Schema({
       },
     ],
 
-     completedJobs: [
+    completedJobs: [
       {
         type: mongoose.Schema.Types.ObjectId,
         ref: "Job",
       },
     ],
 
-
+  
+    // NOTIFICATIONS
+ 
     notifications: [
       {
-        message: String,
+        message: {
+          type: String,
+          required: true,
+        },
         read: {
           type: Boolean,
           default: false,
@@ -86,41 +112,44 @@ const workerProfileSchema = new mongoose.Schema({
       },
     ],
 
-     ratings: [
+
+    // RATINGS & REVIEWS
+  
+    ratings: [
       {
         userId: {
           type: mongoose.Schema.Types.ObjectId,
           ref: "User",
+          required: true,
         },
         value: {
           type: Number,
           min: 1,
           max: 5,
+          required: true,
         },
       },
     ],
 
-      reviews: [
+    reviews: [
       {
         userId: {
           type: mongoose.Schema.Types.ObjectId,
           ref: "User",
+          required: true,
         },
-        comment: String,
+        comment: {
+          type: String,
+          trim: true,
+        },
         createdAt: {
           type: Date,
           default: Date.now,
         },
       },
     ],
-
-     termsAccepted: {
-      type: Boolean,
-      required: true,
-    },
-
-
-},
-{timestamps: true}
+  },
+  { timestamps: true }
 );
-module.exports =mongoose.model("WorkerProfile", workerProfileSchema)
+
+module.exports = mongoose.model("WorkerProfile", workerProfileSchema);

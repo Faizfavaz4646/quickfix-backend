@@ -2,16 +2,23 @@ const express = require("express");
 const WorkerProfile = require("../model/workerProfile");
 const userAuth = require("../middlewares/auth");
 const roleAuth = require("../middlewares/role");
+const {validateWorkerProfileData} = require("../utils/validation")
 
 const workerProfileRouter = express.Router();
 
-/* ================= CREATE / UPDATE PROFILE ================= */
+//create & update profile
 workerProfileRouter.post(
   "/profile",
   userAuth,
   roleAuth(["worker"]),
   async (req, res) => {
     try {
+        const isValid =validateWorkerProfileData(req.body)
+        if(!isValid){
+            return res.status(400).json({
+                message:"Invalid fields in worker profile data"
+            })
+        }
       const profile = await WorkerProfile.findOneAndUpdate(
         { userId: req.user._id },
         { ...req.body, userId: req.user._id },
@@ -30,7 +37,7 @@ workerProfileRouter.post(
 );
 
 
-/* ================= GET PROFILE ================= */
+
 workerProfileRouter.get(
   "/profile",
   userAuth,
