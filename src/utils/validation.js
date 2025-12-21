@@ -47,7 +47,6 @@ const workerProfileSchema = Joi.object({
   schedule: Joi.string().required(),
   profilePic: Joi.string().uri().allow("", null),
 
-  skills: Joi.array().items(Joi.string()),
   previousWorkImages: Joi.array().items(Joi.string()),
 
   requests: Joi.array().items(Joi.object().unknown(true)),
@@ -59,9 +58,25 @@ const workerProfileSchema = Joi.object({
   reviews: Joi.array().items(Joi.string()),
 }).unknown(false);
 
+
+const workerProfilePatchSchema = Joi.object({
+  profession: Joi.string().min(2),
+  phone: Joi.string().pattern(/^[0-9]{10}$/),
+  gender: Joi.string().valid("male", "female", "other"),
+  state: Joi.string(),
+  district: Joi.string(),
+  city: Joi.string(),
+  zip: Joi.string().length(6),
+  schedule: Joi.string(),
+  profilePic: Joi.string().uri().allow("", null),
+
+  previousWorkImages: Joi.array().items(Joi.string().uri())
+}).min(1); // must update at least one field
+
 module.exports = {
   signupSchema,
   loginSchema,
   clientProfileSchema,
   workerProfileSchema,
+  workerProfilePatchSchema,
 };

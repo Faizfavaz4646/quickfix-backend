@@ -38,7 +38,7 @@ exports.login = async (req ,res)=>{
     if(!user)(
       res.status(401).json({message :"Invalid credentials"})
     )
-    if(user.status === blocked){
+    if(user.status === "blocked"){
       return res.status(403).json({ message: "Account blocked" });
 
     }
@@ -58,7 +58,7 @@ exports.login = async (req ,res)=>{
       user:{
         id: user._id,
         name:user.name,
-        role:user.role,
+        role:user.role
 
       },
       token,
@@ -66,7 +66,8 @@ exports.login = async (req ,res)=>{
 
 
   }catch(err){
-    res.status(500).json({ message: "Login failed" });
+     console.error("Login failed:", err);
+    res.status(500).json({ message: "Login failed",err });
 
   }
 }
