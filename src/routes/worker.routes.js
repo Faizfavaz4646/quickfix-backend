@@ -1,27 +1,26 @@
 const express = require("express");
-const workerProfileRouter =express.Router();
+const router = express.Router();
 
 const userAuth = require("../middlewares/auth.middleware");
 const roleAuth = require("../middlewares/role.middleware");
 const validate = require("../middlewares/validate.middleware");
 
-const workerProfileSchema = require("../utils/validation");
+const { workerProfilePatchSchema } = require("../utils/validation");
 const workerProfileController = require("../controllers/workerProfile.controller");
 
-
-workerProfileRouter.patch(
+router.patch(
   "/profile",
   userAuth,
   roleAuth(["worker"]),
-  validate(workerProfileSchema.clientProfileSchema),
+  validate(workerProfilePatchSchema),
   workerProfileController.upsertWorkerProfile
 );
 
-workerProfileRouter.get(
+router.get(
   "/profile",
   userAuth,
   roleAuth(["worker"]),
   workerProfileController.getWorkerProfile
 );
 
-module.exports =workerProfileRouter;
+module.exports = router;

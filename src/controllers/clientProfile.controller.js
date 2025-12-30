@@ -1,3 +1,4 @@
+
 const ClientProfile = require("../model/clientProfile")
 
 
@@ -7,11 +8,36 @@ const ClientProfile = require("../model/clientProfile")
     try {
         const userId =req.user._id;
 
+        const allowedFields = [
+      "phone",
+      "gender",
+      "state",
+      "district",
+      "city",
+      "zip",
+      "profilePic",
+      "preferences"
+    ];
+    const updateData ={};
+    allowedFields.forEach((field)=>{
+        if(req.body[field] !== undefined){
+            updateData[field] =req.body[field];
+        }
+    });
+    if(Object.keys(updateData).length === 0){
+        return res.status(400).json({
+             message: "No valid fields to update"
+        })
+    }
         const profile = await ClientProfile.findOneAndUpdate(
-            {userId},
-            {$set : req.body},
-            {new :true, upsert:true}
-        );
+      { userId },
+      { $set: updateData },
+      {
+        new: true,
+        upsert: true,
+        runValidators: true
+      }
+    );
         res.status(200).json({
             message :"profile updated successfully",
             profile
@@ -25,3 +51,17 @@ const ClientProfile = require("../model/clientProfile")
 
     }
  }
+
+ exports.getClientProfile = async (req, res) => {
+  try {
+    const profile = await ClientProfile.findOne({ userId: req.user._id });
+
+    if (!profile) {
+      return res.status(404).json({ message: "Profile not found" });
+    }
+
+    res.status(200).json(profile);
+  } catch (err) {
+    res.status(500).json({ message: "Internal server error" });
+  }
+};

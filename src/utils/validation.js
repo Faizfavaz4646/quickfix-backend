@@ -35,6 +35,20 @@ const clientProfileSchema = Joi.object({
   preferences: Joi.object().unknown(true),
 }).unknown(false);
 
+const clientProfilePatchSchema = Joi.object({
+  phone: Joi.string().pattern(/^[0-9]{10}$/),
+  gender: Joi.string().valid("male", "female"),
+  state: Joi.string(),
+  district: Joi.string(),
+  city: Joi.string(),
+  zip: Joi.string().length(6),
+  profilePic: Joi.string().uri().allow("", null),
+  preferences: Joi.object().unknown(true)
+})
+.min(1)
+.unknown(false);
+
+
 /* ================= WORKER PROFILE ================= */
 const workerProfileSchema = Joi.object({
   profession: Joi.string().required(),
@@ -79,4 +93,5 @@ module.exports = {
   clientProfileSchema,
   workerProfileSchema,
   workerProfilePatchSchema,
+  clientProfilePatchSchema
 };
