@@ -8,6 +8,7 @@ const validate = require("../middlewares/validate.middleware");
 const { workerProfilePatchSchema } = require("../utils/validation");
 const workerProfileController = require("../controllers/workerProfile.controller");
 
+
 router.patch(
   "/profile",
   userAuth,
@@ -22,5 +23,9 @@ router.get(
   roleAuth(["worker"]),
   workerProfileController.getWorkerProfile
 );
+
+router.get(
+  "/search",workerProfileController.searchWorkers
+)
 
 module.exports = router;

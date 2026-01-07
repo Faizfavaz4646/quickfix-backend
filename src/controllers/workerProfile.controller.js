@@ -40,3 +40,26 @@ exports.getWorkerProfile = async (req, res) => {
     res.status(500).json({ message: "Internal server error" });
   }
 };
+exports.searchWorkers =async(req,res)=>{
+    try {
+        const {profession, location}=req.query
+
+        const query ={};
+        if(profession) query.profession = new RegExp(profession,"i");
+        if(location){
+            query.$or =[
+                {city: new RegExp(location,"i")},
+                {district: new RegExp(location,"i")},
+                {state: new RegExp(location,"i")},
+            ];
+        }
+
+        const workers = await WorkerProfile.find(query)
+        .populate("userId", "name profilePic",);
+        res.json(workers)
+
+    }catch(err){
+        res.status(500).json({message:"Search failed"})
+
+    }
+}
