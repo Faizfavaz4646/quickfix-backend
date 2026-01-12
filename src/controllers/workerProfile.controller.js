@@ -63,3 +63,21 @@ exports.searchWorkers =async(req,res)=>{
 
     }
 }
+exports.getWorkerProfileById = async (req,res)=>{
+  try{
+
+    const {id}=req.params;
+    const worker =await WorkerProfile.findById(id).populate(
+      "userId",
+      "name email"
+    )
+    if(!worker){
+      return res.status(404).json({message:"Worker not found"})
+    }
+    res.json(worker)
+
+  }catch(err){
+      res.status(500).json({ message: "Server error" });
+
+  }
+}

@@ -26,6 +26,10 @@ router.get(
 
 router.get(
   "/search",workerProfileController.searchWorkers
+);
+
+router.get(
+  "/:id",workerProfileController.getWorkerProfileById
 )
 
 module.exports = router;
