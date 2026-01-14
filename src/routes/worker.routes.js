@@ -30,6 +30,29 @@ router.get(
 
 router.get(
   "/:id",workerProfileController.getWorkerProfileById
-)
+);
+router.get(
+  "/by-user",
+  userAuth,
+  roleAuth(["worker"]),
+  workerProfileController.getWorkerByUserId
+);
+router.get(
+  "/me",
+  userAuth,
+  roleAuth(["worker"]),
+  workerProfileController.getWorkerProfile
+);
+
+router.patch(
+  "/me",
+  userAuth,
+  roleAuth(["worker"]),
+  validate(workerProfilePatchSchema),
+  workerProfileController.upsertWorkerProfile
+);
+
+
+
 
 module.exports = router;
