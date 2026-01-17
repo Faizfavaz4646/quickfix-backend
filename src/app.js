@@ -6,6 +6,7 @@ const cookieParser = require("cookie-parser");
 const authRouter = require("./routes/auth.routes");
 const clientProfileRouter = require("./routes/client.routes");
 const workerProfileRouter = require("./routes/worker.routes");
+const jobRequestRoutes = require("./routes/jobRequest.routes");
 
 const app = express();
 
@@ -24,5 +25,6 @@ app.use(cors({
 app.use("/auth", authRouter);
 app.use("/client", clientProfileRouter);
 app.use("/worker", workerProfileRouter);
+app.use("/job-requests",jobRequestRoutes);
 
 module.exports =app;

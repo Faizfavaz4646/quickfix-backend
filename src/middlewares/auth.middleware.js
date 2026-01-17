@@ -23,8 +23,6 @@ const userAuth = (req, res, next) => {
       emailId: decoded.emailId, // optional, helpful for debugging
       name: decoded.name,       // optional
     };
-
-    console.log("✅ Authenticated user:", req.user); // DEBUG: see in terminal
     next();
   } catch (err) {
     console.error("Token verification failed:", err.message);

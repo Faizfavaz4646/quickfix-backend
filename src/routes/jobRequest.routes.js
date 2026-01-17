@@ -11,6 +11,8 @@ const {
 }=require("../utils/jobRequest.schema");
 
 const jobRequestController= require("../controllers/jobRequest.controller");
+console.log(jobRequestController);
+
 
 //client create job requests
 
@@ -49,3 +51,5 @@ router.patch(
     validate(updateJobStatusSchema),
     jobRequestController.updateJobStatus
 )
+
+module.exports =router;

@@ -1,4 +1,4 @@
-const { required } = require("joi");
+
 const mongoose =require("mongoose");
 
 const jobRequestsSchema = new mongoose.Schema({
@@ -37,4 +37,4 @@ const jobRequestsSchema = new mongoose.Schema({
   },
   { timestamps: true }
 );
-module.exports = mongoose.model("JobRequest", jobRequestSchema);
+module.exports = mongoose.model("JobRequest", jobRequestsSchema);

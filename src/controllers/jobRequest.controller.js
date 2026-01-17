@@ -1,9 +1,7 @@
-
 const JobRequest = require("../model/jobRequests");
+const User = require("../model/user");
+const Notifications = require("../model/notifications")
 
-/**
- * CLIENT → Create job request
- */
 exports.createJobRequest = async (req, res) => {
   try {
     const clientId = req.user._id;
@@ -18,11 +16,9 @@ exports.createJobRequest = async (req, res) => {
       scheduledDate,
     } = req.body;
 
-    if (!workerId || !title || !scheduledDate) {
-      return res.status(400).json({
-        message: "Required fields missing",
-      });
-    }
+    // ❌ REDUNDANT CHECK (Joi already handles this)
+    // REMOVE this block entirely
+    // if (!workerId || !title || !scheduledDate) { ... }
 
     // Prevent duplicate pending requests
     const existing = await JobRequest.findOne({
@@ -37,7 +33,7 @@ exports.createJobRequest = async (req, res) => {
       });
     }
 
-    const request = await JobRequest.create({
+    const job = await JobRequest.create({
       clientId,
       workerId,
       title,
@@ -49,128 +45,25 @@ exports.createJobRequest = async (req, res) => {
       status: "pending",
     });
 
-    res.status(201).json(request);
+    // 🔔 CREATE NOTIFICATION
+    const client = await User.findById(clientId).select("name");
+
+    await Notifications.create({
+      userId: workerId,
+      type: "JOB_REQUEST",
+      message: `${client.name} sent a job request to you`,
+      data: {
+        jobId: job._id,
+        clientId,
+      },
+    });
+
+    res.status(201).json({
+      message: "Job request sent successfully",
+      job,
+    });
   } catch (err) {
     console.error("Create job request failed:", err);
     res.status(500).json({ message: "Server error" });
   }
 };
-
-/**
- * WORKER → View received requests
- */
-exports.getWorkerRequests = async (req, res) => {
-  try {
-    const workerId = req.user._id;
-
-    const requests = await JobRequest.find({ workerId })
-      .populate("clientId", "name email")
-      .sort({ createdAt: -1 });
-
-    res.status(200).json(requests);
-  } catch (err) {
-    console.error("Fetch worker requests failed:", err);
-    res.status(500).json({ message: "Server error" });
-  }
-};
-exports.getClientRequests = async (req, res) => {
-  try {
-    const clientId = req.user._id;
-
-    const requests = await JobRequest.find({ clientId })
-      .populate("workerId", "name email")
-      .sort({ createdAt: -1 });
-
-    res.status(200).json(requests);
-  } catch (err) {
-    console.error("Fetch client requests failed:", err);
-    res.status(500).json({ message: "Server error" });
-  }
-};
-
-
-exports.updateJobStatus = async (req, res) => {
-  try {
-    const userId = req.user._id;
-    const userRole = req.user.role; // 'client' or 'worker'
-    const { id } = req.params;
-    const { status } = req.body;
-
-    const job = await JobRequest.findById(id);
-
-    if (!job) {
-      return res.status(404).json({ message: "Job request not found" });
-    }
-
-    /* ======================
-       ROLE & OWNERSHIP CHECK
-       ====================== */
-
-    if (
-      userRole === "worker" &&
-      job.workerId.toString() !== userId.toString()
-    ) {
-      return res.status(403).json({ message: "Not your job request" });
-    }
-
-    if (
-      userRole === "client" &&
-      job.clientId.toString() !== userId.toString()
-    ) {
-      return res.status(403).json({ message: "Not your job request" });
-    }
-
-    /* ======================
-       STATUS TRANSITION RULES
-       ====================== */
-
-    const current = job.status;
-
-    const validTransitions = {
-      pending: ["accepted", "rejected", "cancelled"],
-      accepted: ["completed"],
-    };
-
-    if (!validTransitions[current]?.includes(status)) {
-      return res.status(400).json({
-        message: `Cannot change status from ${current} to ${status}`,
-      });
-    }
-
-    /* ======================
-       ROLE BASED ACTION RULES
-       ====================== */
-
-    if (
-      ["accepted", "rejected", "completed"].includes(status) &&
-      userRole !== "worker"
-    ) {
-      return res.status(403).json({
-        message: "Only worker can perform this action",
-      });
-    }
-
-    if (status === "cancelled" && userRole !== "client") {
-      return res.status(403).json({
-        message: "Only client can cancel a job",
-      });
-    }
-
-    /* ======================
-       UPDATE
-       ====================== */
-
-    job.status = status;
-    await job.save();
-
-    res.status(200).json({
-      message: "Job status updated successfully",
-      job,
-    });
-  } catch (err) {
-    console.error("Update job status failed:", err);
-    res.status(500).json({ message: "Server error" });
-  }
-};
-
-
