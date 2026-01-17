@@ -5,38 +5,17 @@ const userAuth = require("../middlewares/auth.middleware");
 const roleAuth = require("../middlewares/role.middleware");
 const validate = require("../middlewares/validate.middleware");
 
-const { workerProfilePatchSchema } = require("../utils/validation");
+const { upsertWorkerProfileSchema } = require("../utils/validation");
 const workerProfileController = require("../controllers/workerProfile.controller");
 
+/**
+ * PUBLIC ROUTES (NO AUTH)
+ */
+router.get("/search", workerProfileController.searchWorkers);
 
-router.patch(
-  "/profile",
-  userAuth,
-  roleAuth(["worker"]),
-  validate(workerProfilePatchSchema),
-  workerProfileController.upsertWorkerProfile
-);
-
-router.get(
-  "/profile",
-  userAuth,
-  roleAuth(["worker"]),
-  workerProfileController.getWorkerProfile
-);
-
-router.get(
-  "/search",workerProfileController.searchWorkers
-);
-
-router.get(
-  "/:id",workerProfileController.getWorkerProfileById
-);
-router.get(
-  "/by-user",
-  userAuth,
-  roleAuth(["worker"]),
-  workerProfileController.getWorkerByUserId
-);
+/**
+ * AUTHENTICATED WORKER ROUTES
+ */
 router.get(
   "/me",
   userAuth,
@@ -44,15 +23,18 @@ router.get(
   workerProfileController.getWorkerProfile
 );
 
-router.patch(
-  "/me",
+// Single endpoint for create or update (upsert)
+router.post(
+  "/upsert",
   userAuth,
   roleAuth(["worker"]),
-  validate(workerProfilePatchSchema),
+  validate(upsertWorkerProfileSchema),
   workerProfileController.upsertWorkerProfile
 );
 
-
-
+/**
+ * PUBLIC – MUST BE LAST
+ */
+router.get("/:id", workerProfileController.getWorkerProfileById);
 
 module.exports = router;

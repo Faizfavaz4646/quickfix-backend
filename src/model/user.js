@@ -59,7 +59,16 @@ userSchema.methods.validatePassword = async function(passwordInputByUser){
 }
 userSchema.methods.getJwt = async function (){
     const user = this;
-    const token = await jwt.sign({_id:user._id},process.env.JWT_SECRET,{expiresIn :process.env.JWT_EXPIRES_IN})
+  const token = jwt.sign(
+  {
+    _id: user._id,
+    role: user.role,
+    emailId: user.emailId,  // optional, useful for debugging or frontend
+    name: user.name         // optional
+  },
+  process.env.JWT_SECRET,
+  { expiresIn: process.env.JWT_EXPIRES_IN }
+);
 return token
 
 

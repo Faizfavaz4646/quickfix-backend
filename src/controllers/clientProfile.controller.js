@@ -2,8 +2,6 @@
 const ClientProfile = require("../model/clientProfile")
 
 
-
-
  exports.upsertClientProfile = async (req , res)=>{
     try {
         const userId =req.user._id;
@@ -65,3 +63,4 @@ const ClientProfile = require("../model/clientProfile")
     res.status(500).json({ message: "Internal server error" });
   }
 };
+
