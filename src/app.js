@@ -16,9 +16,8 @@ app.use(express.json());
 app.use(cookieParser());
 
 const corsCredentials = process.env.CORS_CREDENTIALS === "true";
-
 app.use(cors({
-  origin: process.env.CLIENT_URL, // fixed the double "process.env"
+  origin: process.env.CLIENT_URL,
   credentials: corsCredentials,
 }));
 
@@ -26,7 +25,7 @@ app.use(cors({
 app.use("/auth", authRouter);
 app.use("/client", clientProfileRouter);
 app.use("/worker", workerProfileRouter);
-app.use("/job-requests",jobRequestRoutes);
-app.use("/notifications",notificationRoutes)
+app.use("/job-requests", jobRequestRoutes);
+app.use("/notifications", notificationRoutes);
 
-module.exports =app;
+module.exports = app;
