@@ -7,6 +7,7 @@ const authRouter = require("./routes/auth.routes");
 const clientProfileRouter = require("./routes/client.routes");
 const workerProfileRouter = require("./routes/worker.routes");
 const jobRequestRoutes = require("./routes/jobRequest.routes");
+const notificationRoutes = require("./routes/notification.routes");
 
 const app = express();
 
@@ -26,5 +27,6 @@ app.use("/auth", authRouter);
 app.use("/client", clientProfileRouter);
 app.use("/worker", workerProfileRouter);
 app.use("/job-requests",jobRequestRoutes);
+app.use("/notifications",notificationRoutes)
 
 module.exports =app;
