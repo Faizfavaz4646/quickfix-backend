@@ -55,6 +55,7 @@ const clientProfilePatchSchema = Joi.object({
  * - For update: any subset of fields is allowed
  */
 const upsertWorkerProfileSchema = Joi.object({
+ FullName: Joi.string().length(20),
   profession: Joi.string().min(2),
   phone: Joi.string().pattern(/^[0-9]{10}$/),
   gender: Joi.string().valid("male", "female", "other"),
