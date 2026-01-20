@@ -31,6 +31,13 @@ router.post(
   validate(upsertWorkerProfileSchema),
   workerProfileController.upsertWorkerProfile
 );
+router.patch(
+  "/upsert", 
+  userAuth,
+  roleAuth(["worker"]),
+  validate(upsertWorkerProfileSchema),
+  workerProfileController.upsertWorkerProfile
+);
 
 /**
  * PUBLIC – MUST BE LAST

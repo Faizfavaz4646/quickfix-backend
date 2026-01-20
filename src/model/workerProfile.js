@@ -17,9 +17,10 @@ const workerProfileSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
-   FullName: {
+   name: {
       type:String,
       required:true,
+      trim:true,
 
     },
 
