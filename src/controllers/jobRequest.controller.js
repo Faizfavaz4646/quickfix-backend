@@ -91,7 +91,7 @@ exports.updateJobStatus = async (req, res) => {
     job.status = status;
     await job.save();
 
-    // 🔔 Notify client about status update
+    //  Notify client about status update
     const notification = await Notification.create({
       userId: job.clientId,
       title: "Job status updated",

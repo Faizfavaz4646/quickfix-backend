@@ -1,6 +1,7 @@
 const jwt = require("jsonwebtoken");
+const User = require("../model/user");
 
-const userAuth = (req, res, next) => {
+const userAuth = async (req, res, next) => {
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -16,13 +17,28 @@ const userAuth = (req, res, next) => {
       return res.status(401).json({ error: "Invalid token payload" });
     }
 
+    //  FETCH USER FROM DB (IMPORTANT)
+    const user = await User.findById(decoded._id);
+
+    if (!user) {
+      return res.status(401).json({ error: "User no longer exists" });
+    }
+
+    //  BLOCKED USER CHECK )
+    if (user.isBlocked) {
+      return res.status(403).json({
+        error: "Your account has been blocked by admin",
+      });
+    }
+
     // attach all relevant info to req.user
     req.user = {
-      _id: decoded._id,
-      role: decoded.role,
-      emailId: decoded.emailId, // optional, helpful for debugging
-      name: decoded.name,       // optional
+      _id: user._id,
+      role: user.role,
+      emailId: user.emailId,
+      name: user.name,
     };
+
     next();
   } catch (err) {
     console.error("Token verification failed:", err.message);
