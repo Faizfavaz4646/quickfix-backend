@@ -8,7 +8,8 @@ const clientProfileRouter = require("./routes/client.routes");
 const workerProfileRouter = require("./routes/worker.routes");
 const jobRequestRoutes = require("./routes/jobRequest.routes");
 const notificationRoutes = require("./routes/notification.routes");
-const postsRoutes = require("./routes/post.routes")
+const postsRoutes = require("./routes/post.routes");
+const adminRoutes = require("./routes/admin.routes");
 
 const app = express();
 
@@ -29,6 +30,6 @@ app.use("/worker", workerProfileRouter);
 app.use("/job-requests", jobRequestRoutes);
 app.use("/notifications", notificationRoutes);
 app.use("/posts",postsRoutes);
-app.use("/admin",)
+app.use("/admin",adminRoutes)
 
 module.exports = app;
