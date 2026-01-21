@@ -63,7 +63,8 @@ exports.getWorkerProfile = async (req, res) => {
 exports.getWorkerProfileById = async (req, res) => {
   try {
     const worker = await WorkerProfile.findById(req.params.id)
-      .populate("userId", "name email")
+      // 1. FIX: Ask for 'emailId', not 'email'
+      .populate("userId", "name emailId profilePic") 
       .lean();
 
     if (!worker) {
@@ -72,9 +73,10 @@ exports.getWorkerProfileById = async (req, res) => {
 
     return res.status(200).json({
       ...worker,
-      name: worker.userId?.name || "",
-      email: worker.userId?.email || "",
-      userId: worker.userId?._id,
+     
+      name: worker.userId?.name || "Service Provider",
+      email: worker.userId?.emailId || "", 
+      userId: worker.userId?._id, 
     });
   } catch (err) {
     console.error("Get worker by profile ID failed:", err);
