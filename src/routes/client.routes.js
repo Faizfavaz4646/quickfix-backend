@@ -12,7 +12,6 @@ clientProfileRouter.patch(
     "/profile",
     userAuth,
     roleAuth(["client"]),
-    validate(clientProfilePatchSchema),
     clientProfileController.upsertClientProfile
 );
 clientProfileRouter.get(
