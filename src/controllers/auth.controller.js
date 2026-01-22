@@ -1,6 +1,7 @@
 
 const bcrypt = require("bcrypt");
 const User = require("../model/user");
+const ClientProfile = require("../model/clientProfile");
 
 
 
@@ -30,47 +31,50 @@ exports.signup = async (req,res)=>{
   }
 };
 
-exports.login = async (req ,res)=>{
+exports.login = async (req, res) => {
   try {
+    const { emailId, password } = req.body;
 
-    const {emailId , password}=req.body;
-    const user = await User.findOne({emailId});
-    if(!user)(
-      res.status(401).json({message :"Invalid credentials"})
-    )
-    if(user.status === "blocked"){
-      return res.status(403).json({ message: "Account blocked" });
+    // 1. Validate User
+    const user = await User.findOne({ emailId });
+    if (!user) return res.status(401).json({ message: "Invalid credentials" });
+    if (user.status === "blocked") return res.status(403).json({ message: "Account blocked" });
 
-    }
     const isValid = await user.validatePassword(password);
-    if(!isValid){
-       return res.status(401).json({ message: "Invalid credentials" });
-    }
+    if (!isValid) return res.status(401).json({ message: "Invalid credentials" });
 
     const token = await user.getJwt();
 
-    res.cookie("token",token,{
-      httpOnly:true,
-      sameSite:"lax"
+    // 2. ⚡️ CRITICAL FIX: Fetch the separate ClientProfile
+    let profileData = {}; 
+    if (user.role === "client") {
+      const clientProfile = await ClientProfile.findOne({ userId: user._id });
+      if (clientProfile) {
+        // Convert to object so we can merge it
+        profileData = clientProfile.toObject();
+      }
+    }
+
+    res.cookie("token", token, { httpOnly: true, sameSite: "lax" });
+
+    // 3. Send Merged Response
+    res.json({
+      message: "Login successful",
+      token,
+      user: {
+        _id: user._id,
+        name: user.name,
+        email: user.emailId,
+        role: user.role,
+        profile: profileData // ✅ Frontend needs this for the Navbar & Edit Form
+      },
     });
 
-    res.json({
-      user:{
-        id: user._id,
-        name:user.name,
-        role:user.role
-
-      },
-      token,
-    })
-
-
-  }catch(err){
-     console.error("Login failed:", err);
-    res.status(500).json({ message: "Login failed",err });
-
+  } catch (err) {
+    console.error("Login Error:", err);
+    res.status(500).json({ message: "Login failed" });
   }
-}
+};
 
 
 
