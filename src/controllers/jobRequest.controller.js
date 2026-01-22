@@ -20,25 +20,23 @@ exports.createJobRequest = async (req, res) => {
       });
     }
 
-    // Create new job request
     const job = await JobRequest.create({
       ...req.body,
       clientId,
       status: "pending",
     });
 
-    // 🔔 Create notification for worker
+    // Notification Logic
     const notification = await Notification.create({
       userId: workerId,
-      title: "New job request",
-      message: "You have received a new job request",
+      title: "New Job Request",
+      message: `You have a new request: ${req.body.title}`,
       type: "job_request",
       relatedId: job._id,
     });
 
-    // ⚡ Send real-time notification if worker is online
-    if (global.sendNotificationRealtime) {
-      global.sendNotificationRealtime(notification);
+    if (global.SendNotificationRealTime) {
+      global.SendNotificationRealTime(notification);
     }
 
     res.status(201).json(job);
@@ -48,28 +46,22 @@ exports.createJobRequest = async (req, res) => {
   }
 };
 
-/* ================= GET WORKER REQUESTS ================= */
-exports.getWorkerRequests = async (req, res) => {
+/* ================= GET PENDING REQUESTS (Fixes 404) ================= */
+exports.getWorkerPendingRequests = async (req, res) => {
   try {
     const workerId = req.user._id;
-    const requests = await JobRequest.find({ workerId })
-      .populate("clientId", "name email");
-    res.json(requests);
-  } catch (err) {
-    console.error("Get worker requests error:", err);
-    res.status(500).json({ message: "Server error" });
-  }
-};
+    
+    // Filter specifically for "pending" status
+    const requests = await JobRequest.find({ 
+      workerId, 
+      status: "pending" 
+    })
+    .populate("clientId", "name email profilePic") // Ensure profilePic is populated
+    .sort({ createdAt: -1 });
 
-/* ================= GET CLIENT REQUESTS ================= */
-exports.getClientRequests = async (req, res) => {
-  try {
-    const clientId = req.user._id;
-    const requests = await JobRequest.find({ clientId })
-      .populate("workerId", "name email");
     res.json(requests);
   } catch (err) {
-    console.error("Get client requests error:", err);
+    console.error("Get pending requests error:", err);
     res.status(500).json({ message: "Server error" });
   }
 };
@@ -83,31 +75,30 @@ exports.updateJobStatus = async (req, res) => {
     const job = await JobRequest.findById(id);
     if (!job) return res.status(404).json({ message: "Job not found" });
 
-    // Only assigned worker can update status
-    if (req.user.role !== "worker" || job.workerId.toString() !== req.user._id.toString()) {
+    // Security check
+    if (job.workerId.toString() !== req.user._id.toString()) {
       return res.status(403).json({ message: "Not authorized" });
     }
 
     job.status = status;
     await job.save();
 
-    //  Notify client about status update
+    // Notify Client
     const notification = await Notification.create({
       userId: job.clientId,
-      title: "Job status updated",
-      message: `Your job request status is now "${status}"`,
+      title: `Request ${status}`,
+      message: `Your job request "${job.title}" was ${status}`,
       type: "job_update",
       relatedId: job._id,
     });
 
-    // ⚡ Send real-time notification if client is online
-    if (global.sendNotificationRealtime) {
-      global.sendNotificationRealtime(notification);
+    if (global.SendNotificationRealTime) {
+      global.SendNotificationRealTime(notification);
     }
 
     res.json(job);
   } catch (err) {
-    console.error("Update job status error:", err);
+    console.error("Update status error:", err);
     res.status(500).json({ message: "Server error" });
   }
 };
