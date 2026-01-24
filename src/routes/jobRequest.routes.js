@@ -21,7 +21,16 @@ router.post(
     jobRequestController.createJobRequest
 );
 
-// 2. Get Pending Requests (Worker) - 
+// 2. Get Active Jobs (Worker) - NEW ROUTE ADDED HERE
+// This must be defined before /:id routes
+router.get(
+    "/worker/active",
+    userAuth,
+    roleAuth(["worker"]),
+    jobRequestController.getWorkerActiveJobs
+);
+
+// 3. Get Pending Requests (Worker)
 router.get(
     "/worker/pending",
     userAuth,
@@ -29,7 +38,7 @@ router.get(
     jobRequestController.getWorkerPendingRequests
 );
 
-// 3. Update Status (Worker)
+// 4. Update Status (Worker)
 router.patch(
     "/:id/status",
     userAuth,
