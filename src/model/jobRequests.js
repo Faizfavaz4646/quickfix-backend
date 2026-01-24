@@ -1,17 +1,10 @@
 const mongoose = require("mongoose");
 
 const jobRequestsSchema = new mongoose.Schema({
-    clientId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "User",
-        required: true,
-    },
-    workerId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "User",
-        required: true
-    },
-    // ✅ FIX: Removed duplicate title/description lines
+    clientId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+    workerId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+    
+    // ✅ Ensure these are listed ONLY ONCE
     title: { type: String, required: true },
     description: { type: String, required: true },
     address: { type: String, required: true },
