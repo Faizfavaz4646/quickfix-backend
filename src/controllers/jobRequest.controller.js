@@ -197,3 +197,20 @@ exports.getWorkerActiveJobs = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
+exports.getWorkerCompletedJobs = async (req, res) => {
+  try {
+    const workerId = req.user._id;
+
+    // Simple find because we just need the count (and maybe basic details)
+    const completedJobs = await JobRequest.find({ 
+      workerId, 
+      status: "completed" 
+    })
+    .sort({ updatedAt: -1 }); // Most recently completed first
+
+    res.json(completedJobs);
+  } catch (err) {
+    console.error("Get completed jobs error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
