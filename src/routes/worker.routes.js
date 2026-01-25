@@ -40,6 +40,13 @@ router.patch(
 );
 
 /**
+ * ✅ NEW ROUTE: Handle "GET /workers?userId=..." 
+ * This prevents the 404 loop.
+ * (MUST BE PLACED BEFORE THE /:id ROUTE)
+ */
+router.get("/", workerProfileController.getWorkerByUserIdParam);
+
+/**
  * PUBLIC – MUST BE LAST
  */
 router.get("/:id", workerProfileController.getWorkerProfileById);

@@ -1,5 +1,6 @@
 const ClientProfile = require("../model/clientProfile"); // Ensure casing matches your file
 const User = require("../model/user");
+const JobRequest = require("../model/jobRequests");
 
 exports.upsertClientProfile = async (req, res) => {
   try {
@@ -67,25 +68,44 @@ exports.upsertClientProfile = async (req, res) => {
 
 exports.getClientProfile = async (req, res) => {
   try {
-    // 1. Try to find the profile
-    const profile = await ClientProfile.findOne({ userId: req.user._id })
-      .populate("userId", "name emailId"); // Grab name/email from User model
+    const userId = req.user._id;
 
-    // 2. CASE A: Profile Found
+    // --- STEP 1: FETCH JOBS (The missing part) ---
+    // We search the 'JobRequest' collection for any job linked to this client
+    const allJobs = await JobRequest.find({ clientId: userId })
+      .populate("workerId", "name profession profilePic") // Get worker details for the card
+      .sort({ createdAt: -1 });
+
+    // Separate jobs into categories for the dashboard
+    const requests = allJobs.filter(j => j.status === "pending");
+    const activeJobs = allJobs.filter(j => j.status === "accepted" || j.status === "ongoing");
+    const completedJobs = allJobs.filter(j => j.status === "completed" || j.status === "rejected");
+
+    // --- STEP 2: FETCH PROFILE ---
+    const profile = await ClientProfile.findOne({ userId })
+      .populate("userId", "name emailId");
+
+    // --- STEP 3: CONSTRUCT RESPONSE ---
+    
+    // CASE A: Profile Found
     if (profile) {
       return res.status(200).json({
         ...profile.toObject(),
         name: profile.userId?.name,
-        email: profile.userId?.emailId
+        email: profile.userId?.emailId,
+        // ✅ Add the jobs here so the dashboard works
+        requests,
+        activeJobs,
+        completedJobs
       });
     }
 
-    // 3. CASE B: Profile Not Found (New User) - THIS IS THE FIX
-    // Instead of sending 404, we send the basic User data so the form can pre-fill
-    const user = await User.findById(req.user._id);
+    // CASE B: Profile Not Found (New User)
+    // We still return the jobs (even if profile is empty) + User data
+    const user = await User.findById(userId);
     
     return res.status(200).json({
-      // Send empty strings for profile fields so React inputs are controlled
+      // Basic Fields
       phone: "", 
       gender: "", 
       state: "", 
@@ -93,9 +113,11 @@ exports.getClientProfile = async (req, res) => {
       city: "", 
       zip: "", 
       profilePic: "",
-      // Send the known user data
-      name: user.name,
-      email: user.emailId
+      name: user?.name,
+      email: user?.emailId,
+      requests,
+      activeJobs,
+      completedJobs
     });
 
   } catch (err) {

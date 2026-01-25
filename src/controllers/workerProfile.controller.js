@@ -145,3 +145,37 @@ exports.searchWorkers = async (req, res) => {
     return res.status(500).json({ message: "Search failed" });
   }
 };
+exports.getWorkerByUserIdParam = async (req, res) => {
+  try {
+    const { userId } = req.query;
+
+    if (!userId) {
+      return res.status(400).json({ message: "User ID required" });
+    }
+
+    // Find the worker profile linked to this User ID
+    // We return an array because your frontend checks for workers[0]
+    const worker = await WorkerProfile.find({ userId })
+      .populate("userId", "name email profilePic")
+      .lean();
+
+    if (!worker || worker.length === 0) {
+      return res.status(404).json({ message: "Worker not found" });
+    }
+
+    // Flatten data if needed, or return as is
+    // This matches the structure expected by your frontend
+    const formattedWorker = worker.map(w => ({
+        ...w,
+        name: w.userId?.name,
+        email: w.userId?.email,
+        profilePic: w.userId?.profilePic,
+        userId: w.userId?._id
+    }));
+
+    return res.status(200).json(formattedWorker);
+  } catch (err) {
+    console.error("Get worker by query failed:", err);
+    return res.status(500).json({ message: "Server error" });
+  }
+};

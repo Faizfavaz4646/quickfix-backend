@@ -1,4 +1,4 @@
-const mongoose = require("mongoose"); // 👈 REQUIRED for Aggregation
+const mongoose = require("mongoose");
 const JobRequest = require("../model/jobRequests");
 const Notification = require("../model/notifications");
 
@@ -61,7 +61,7 @@ exports.createJobRequest = async (req, res) => {
   }
 };
 
-/* ================= GET PENDING REQUESTS ================= */
+/* ================= GET PENDING REQUESTS (Worker View) ================= */
 exports.getWorkerPendingRequests = async (req, res) => {
   try {
     const workerId = req.user._id;
@@ -116,13 +116,11 @@ exports.updateJobStatus = async (req, res) => {
   }
 };
 
-/* ================= GET ACTIVE JOBS (FIXED WITH AGGREGATION) ================= */
+/* ================= GET ACTIVE JOBS (Worker View - Aggregation) ================= */
 exports.getWorkerActiveJobs = async (req, res) => {
   try {
-    // 1. Convert User ID to ObjectId for Aggregation
     const workerId = new mongoose.Types.ObjectId(req.user._id);
 
-    // 2. Run Aggregation Pipeline to "Join" 3 Collections (Jobs + Users + ClientProfiles)
     const activeJobs = await JobRequest.aggregate([
       // A. Match: Only accepted jobs for this worker
       { 
@@ -131,8 +129,7 @@ exports.getWorkerActiveJobs = async (req, res) => {
           status: "accepted" 
         } 
       },
-
-      // B. Lookup: Get basic User info (Name, Email)
+      // B. Lookup: Get basic User info
       {
         $lookup: {
           from: "users",            
@@ -141,18 +138,17 @@ exports.getWorkerActiveJobs = async (req, res) => {
           as: "userDetails"
         }
       },
-      { $unwind: "$userDetails" }, // Flatten array
+      { $unwind: "$userDetails" },
 
-      // C. Lookup: Get Profile Pic from 'clientprofiles' collection
+      // C. Lookup: Get Profile Pic from 'clientprofiles'
       {
         $lookup: {
-          from: "clientprofiles",   // ✅ MATCHING YOUR MONGODB COLLECTION NAME
-          localField: "clientId",   // Link using the User ID
-          foreignField: "userId",   // Match it to 'userId' in profiles
+          from: "clientprofiles",   
+          localField: "clientId",   
+          foreignField: "userId",   
           as: "clientProfileData"
         }
       },
-      // Unwind safely (keep job even if profile is missing)
       { 
         $unwind: { 
           path: "$clientProfileData", 
@@ -160,10 +156,10 @@ exports.getWorkerActiveJobs = async (req, res) => {
         } 
       },
 
-      // D. Sort: Show soonest jobs first
+      // D. Sort
       { $sort: { scheduledDate: 1 } },
 
-      // E. Project: Shape the final data for your Frontend
+      // E. Project
       {
         $project: {
           _id: 1,
@@ -173,17 +169,13 @@ exports.getWorkerActiveJobs = async (req, res) => {
           clientPhone: 1,
           scheduledDate: 1,
           status: 1,
-          // Reconstruct 'clientId' object so frontend works automatically
           clientId: {
             _id: "$userDetails._id",
             name: "$userDetails.name",
             email: "$userDetails.email",
-            
-            // ✅ THE FIX: Grab pic from 'clientProfileData' first!
             profilePic: { 
               $ifNull: ["$clientProfileData.profilePic", "$userDetails.profilePic"] 
             },
-            
             phone: { $ifNull: ["$clientProfileData.phone", "$userDetails.phone"] },
             city: "$clientProfileData.city" 
           }
@@ -197,20 +189,156 @@ exports.getWorkerActiveJobs = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
+
+/* ================= GET COMPLETED JOBS (Worker View) ================= */
 exports.getWorkerCompletedJobs = async (req, res) => {
   try {
     const workerId = req.user._id;
 
-    // Simple find because we just need the count (and maybe basic details)
     const completedJobs = await JobRequest.find({ 
       workerId, 
       status: "completed" 
     })
-    .sort({ updatedAt: -1 }); // Most recently completed first
+    .sort({ updatedAt: -1 });
 
     res.json(completedJobs);
   } catch (err) {
     console.error("Get completed jobs error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+/* ================= GET ALL REQUESTS (Worker View - History) ================= */
+exports.getAllWorkerRequests = async (req, res) => {
+  try {
+    const workerId = new mongoose.Types.ObjectId(req.user._id);
+    
+    const requests = await JobRequest.aggregate([
+      { $match: { workerId: workerId } },
+      { $sort: { createdAt: -1 } },
+      {
+        $lookup: {
+          from: "users",
+          localField: "clientId",
+          foreignField: "_id",
+          as: "clientUser"
+        }
+      },
+      { $unwind: "$clientUser" },
+      {
+        $lookup: {
+          from: "clientprofiles",
+          localField: "clientId",
+          foreignField: "userId",
+          as: "clientProfile"
+        }
+      },
+      { 
+        $unwind: { 
+          path: "$clientProfile", 
+          preserveNullAndEmptyArrays: true
+        } 
+      },
+      {
+        $project: {
+          _id: 1,
+          title: 1,
+          description: 1,
+          address: 1,
+          status: 1,
+          scheduledDate: 1,
+          clientPhone: 1,
+          createdAt: 1,
+          clientId: {
+            _id: "$clientUser._id",
+            name: "$clientUser.name",
+            email: { $ifNull: ["$clientUser.email", "$clientUser.emailId"] },
+            profilePic: { 
+              $ifNull: ["$clientProfile.profilePic", "$clientUser.profilePic"] 
+            }
+          }
+        }
+      }
+    ]);
+
+    res.json(requests);
+  } catch (err) {
+    console.error("Get all requests error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+/* ================= GET ALL CLIENT REQUESTS (Client View) ================= */
+// ✅ THIS IS THE NEW FUNCTION
+exports.getClientRequests = async (req, res) => {
+  try {
+    // 1. Get Logged in Client ID
+    const clientId = new mongoose.Types.ObjectId(req.user._id);
+    const { status } = req.query; // allow filtering ?status=pending
+
+    // 2. Build Match Query
+    const matchQuery = { clientId: clientId };
+    if (status) {
+        matchQuery.status = status;
+    }
+
+    const requests = await JobRequest.aggregate([
+      { $match: matchQuery },
+      { $sort: { createdAt: -1 } },
+
+      // 3. Lookup WORKER User Info
+      {
+        $lookup: {
+          from: "users",
+          localField: "workerId",
+          foreignField: "_id",
+          as: "workerUser"
+        }
+      },
+      { $unwind: "$workerUser" },
+
+      // 4. Lookup WORKER Profile Info (Profession, Rating, etc.)
+      {
+        $lookup: {
+          from: "workerprofiles", // Assumes your collection is named 'workerprofiles'
+          localField: "workerId",
+          foreignField: "userId",
+          as: "workerProfile"
+        }
+      },
+      { 
+        $unwind: { 
+          path: "$workerProfile", 
+          preserveNullAndEmptyArrays: true
+        } 
+      },
+
+      // 5. Project (Shape Data for Frontend)
+      {
+        $project: {
+          _id: 1,
+          title: 1,
+          description: 1,
+          address: 1,
+          status: 1,
+          scheduledDate: 1,
+          createdAt: 1,
+          // Map Worker Details
+          workerId: {
+            _id: "$workerUser._id",
+            name: "$workerUser.name",
+            email: { $ifNull: ["$workerUser.email", "$workerUser.emailId"] },
+            profilePic: { $ifNull: ["$workerProfile.profilePic", "$workerUser.profilePic"] },
+            profession: "$workerProfile.profession",
+            averageRating: "$workerUser.averageRating"
+          }
+        }
+      }
+    ]);
+
+    res.json(requests);
+  } catch (err) {
+    console.error("Get client requests error:", err);
     res.status(500).json({ message: "Server error" });
   }
 };

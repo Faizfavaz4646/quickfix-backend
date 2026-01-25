@@ -12,6 +12,8 @@ const {
 
 const jobRequestController = require("../controllers/jobRequest.controller");
 
+/* ================= CLIENT ROUTES ================= */
+
 // 1. Create Request (Client)
 router.post(
     "/",
@@ -21,8 +23,18 @@ router.post(
     jobRequestController.createJobRequest
 );
 
-// 2. Get Active Jobs (Worker) - NEW ROUTE ADDED HERE
-// This must be defined before /:id routes
+//  2. Get All Client Requests (History/Pending) - NEW ROUTE
+router.get(
+    "/client/all",
+    userAuth,
+    roleAuth(["client"]),
+    jobRequestController.getClientRequests
+);
+
+
+/* ================= WORKER ROUTES ================= */
+
+// 3. Get Active Jobs
 router.get(
     "/worker/active",
     userAuth,
@@ -30,7 +42,15 @@ router.get(
     jobRequestController.getWorkerActiveJobs
 );
 
-// 3. Get Pending Requests (Worker)
+// 4. Get Completed Jobs
+router.get(
+    "/worker/completed",
+    userAuth,
+    roleAuth(["worker"]),
+    jobRequestController.getWorkerCompletedJobs
+);
+
+// 5. Get Pending Requests (Only Pending)
 router.get(
     "/worker/pending",
     userAuth,
@@ -38,7 +58,19 @@ router.get(
     jobRequestController.getWorkerPendingRequests
 );
 
-// 4. Update Status (Worker)
+// 6. Get ALL Requests (Pending, History, etc.)
+router.get(
+    "/worker/all",
+    userAuth,
+    roleAuth(["worker"]),
+    jobRequestController.getAllWorkerRequests
+);
+
+
+/* ================= SHARED / DYNAMIC ROUTES ================= */
+// NOTE: Dynamic routes like /:id must be LAST to avoid matching specific paths
+
+// 7. Update Status (Worker)
 router.patch(
     "/:id/status",
     userAuth,

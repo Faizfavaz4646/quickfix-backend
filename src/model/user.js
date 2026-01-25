@@ -1,76 +1,81 @@
 const mongoose = require("mongoose");
-
 const validator = require("validator");
-
 const bcrypt = require("bcrypt");
-
-const jwt = require("jsonwebtoken")
+const jwt = require("jsonwebtoken");
 
 const userSchema = new mongoose.Schema({
-
-    name :{
-        type:String,
-        required:true,
-        minLength:4,
-        maxLength:16,
-
+    name: {
+        type: String,
+        required: true,
+        minLength: 4,
+        maxLength: 16,
     },
-    emailId :{
-        type:String,
-        required:true,
-        unique:true,
-        lowercase:true,
-        trim:true,
+    emailId: {
+        type: String,
+        required: true,
+        unique: true,
+        lowercase: true,
+        trim: true,
         validate: {
-            validator(value){
-                if(!validator.isEmail(value)){
+            validator(value) {
+                if (!validator.isEmail(value)) {
                     throw new Error("Invalid Email address" + value)
                 }
             }
         }
-
     },
-    password : {
-        type:String,
-        required:true,
-        minLength:8,
-        maxLength:64
+    password: {
+        type: String,
+        required: true,
+        minLength: 8,
+        maxLength: 64
     },
-    role:{
-        type :String,
-        required : true,
-        enum: ['client', 'worker', 'admin'], 
-         default: 'client',
+    role: {
+        type: String,
+        required: true,
+        enum: ['client', 'worker', 'admin'],
+        default: 'client',
     },
-      status: {
-    type: String,
-    enum: ['active', 'blocked'],
-    default: 'active'
-  }
+    status: {
+        type: String,
+        enum: ['active', 'blocked'], // Changed 'online'/'offline' to active/blocked status for account management
+        default: 'active'
+    },
+    
+    // ✅ NEW FIELDS FOR RATING SYSTEM
+    averageRating: { 
+        type: Number, 
+        default: 0,
+        min: 0,
+        max: 5
+    },
+    totalReviews: { 
+        type: Number, 
+        default: 0 
+    }
 
-},{timestamps:true})
+}, { timestamps: true });
 
-userSchema.methods.validatePassword = async function(passwordInputByUser){
-    const user =this;
-    const passwordHash = user.password
-    const isPasswordValid = await bcrypt.compare(passwordInputByUser,passwordHash)
-    return isPasswordValid
-
-}
-userSchema.methods.getJwt = async function (){
+userSchema.methods.validatePassword = async function (passwordInputByUser) {
     const user = this;
-  const token = jwt.sign(
-  {
-    _id: user._id,
-    role: user.role,
-    emailId: user.emailId,  // optional, useful for debugging or frontend
-    name: user.name         // optional
-  },
-  process.env.JWT_SECRET,
-  { expiresIn: process.env.JWT_EXPIRES_IN }
-);
-return token
-
-
+    const passwordHash = user.password;
+    const isPasswordValid = await bcrypt.compare(passwordInputByUser, passwordHash);
+    return isPasswordValid;
 }
-module.exports = mongoose.model("User",userSchema);
+
+userSchema.methods.getJwt = async function () {
+    const user = this;
+    const token = jwt.sign(
+        {
+            _id: user._id,
+            role: user.role,
+            emailId: user.emailId,
+            name: user.name
+        },
+        process.env.JWT_SECRET,
+        { expiresIn: process.env.JWT_EXPIRES_IN }
+    );
+    return token;
+}
+
+module.exports = mongoose.model("User", userSchema);
