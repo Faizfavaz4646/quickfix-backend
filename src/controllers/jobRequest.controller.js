@@ -1,3 +1,4 @@
+const mongoose = require("mongoose"); // 👈 REQUIRED for Aggregation
 const JobRequest = require("../model/jobRequests");
 const Notification = require("../model/notifications");
 
@@ -9,12 +10,10 @@ exports.createJobRequest = async (req, res) => {
     const clientId = req.user._id;
     const { workerId, title, description, address, scheduledDate, clientPhone } = req.body;
 
-    // 1. Validation Check
     if (!workerId || !title || !description || !clientPhone) {
         return res.status(400).json({ message: "Missing required fields" });
     }
 
-    // 2. Prevent Duplicate
     const existingRequest = await JobRequest.findOne({
       clientId,
       workerId,
@@ -25,7 +24,6 @@ exports.createJobRequest = async (req, res) => {
       return res.status(409).json({ message: "Request already pending" });
     }
 
-    // 3. Create Job
     const job = await JobRequest.create({
       clientId,
       workerId,
@@ -39,30 +37,21 @@ exports.createJobRequest = async (req, res) => {
 
     console.log("✅ [DEBUG] Job Saved Successfully:", job._id);
 
-    // --- 🔔 4. NOTIFICATION LOGIC (FIXED) ---
     try {
         const newNotification = await Notification.create({
-            userId: workerId,           // Matches Schema
-            // senderId: clientId,      <-- REMOVED (Not in your Schema)
-            
-            title: "New Job Request",   // ✅ ADDED (Required by Schema)
+            userId: workerId,
+            title: "New Job Request",
             message: `New request: ${title}`,
-            
-            type: "job_request",        // ✅ FIXED (Lowercase to match enum)
-            
-            relatedId: job._id,         // ✅ FIXED (Changed 'jobId' to 'relatedId')
+            type: "job_request",
+            relatedId: job._id,
             isRead: false
         });
-
-        console.log("🔔 [DEBUG] Notification Saved to DB:", newNotification._id);
 
         if (global.SendNotificationRealTime) {
             global.SendNotificationRealTime(newNotification);
         }
-
     } catch (notifError) {
         console.error("⚠️ [DEBUG] Notification Failed:", notifError.message);
-        // Tip: This log was effectively hiding the validation error before!
     }
 
     res.status(201).json(job);
@@ -103,17 +92,13 @@ exports.updateJobStatus = async (req, res) => {
     job.status = status;
     await job.save();
 
-    // --- 🔔 UPDATE NOTIFICATION (FIXED) ---
     try {
         const notification = await Notification.create({
             userId: job.clientId,       
-            
             title: `Request ${status}`,  
             message: `Your request "${job.title}" was ${status}`,
-            
-            type: "job_update",          // ✅ FIXED (Must use "job_update" per Schema)
-            
-            relatedId: job._id,          // ✅ FIXED (Changed 'jobId' to 'relatedId')
+            type: "job_update",
+            relatedId: job._id,
             isRead: false
         });
 
@@ -130,18 +115,81 @@ exports.updateJobStatus = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
-/* ================= GET ACTIVE JOBS ================= */
+
+/* ================= GET ACTIVE JOBS (FIXED WITH AGGREGATION) ================= */
 exports.getWorkerActiveJobs = async (req, res) => {
   try {
-    const workerId = req.user._id;
+    // 1. Convert User ID to ObjectId for Aggregation
+    const workerId = new mongoose.Types.ObjectId(req.user._id);
 
-    // Find jobs where status is 'accepted'
-    const activeJobs = await JobRequest.find({ 
-      workerId, 
-      status: "accepted" 
-    })
-    .populate("clientId", "name email profilePic phone address") // Get client details
-    .sort({ scheduledDate: 1 }); // Show soonest jobs first
+    // 2. Run Aggregation Pipeline to "Join" 3 Collections (Jobs + Users + ClientProfiles)
+    const activeJobs = await JobRequest.aggregate([
+      // A. Match: Only accepted jobs for this worker
+      { 
+        $match: { 
+          workerId: workerId, 
+          status: "accepted" 
+        } 
+      },
+
+      // B. Lookup: Get basic User info (Name, Email)
+      {
+        $lookup: {
+          from: "users",            
+          localField: "clientId",
+          foreignField: "_id",
+          as: "userDetails"
+        }
+      },
+      { $unwind: "$userDetails" }, // Flatten array
+
+      // C. Lookup: Get Profile Pic from 'clientprofiles' collection
+      {
+        $lookup: {
+          from: "clientprofiles",   // ✅ MATCHING YOUR MONGODB COLLECTION NAME
+          localField: "clientId",   // Link using the User ID
+          foreignField: "userId",   // Match it to 'userId' in profiles
+          as: "clientProfileData"
+        }
+      },
+      // Unwind safely (keep job even if profile is missing)
+      { 
+        $unwind: { 
+          path: "$clientProfileData", 
+          preserveNullAndEmptyArrays: true 
+        } 
+      },
+
+      // D. Sort: Show soonest jobs first
+      { $sort: { scheduledDate: 1 } },
+
+      // E. Project: Shape the final data for your Frontend
+      {
+        $project: {
+          _id: 1,
+          title: 1,
+          description: 1,
+          address: 1,
+          clientPhone: 1,
+          scheduledDate: 1,
+          status: 1,
+          // Reconstruct 'clientId' object so frontend works automatically
+          clientId: {
+            _id: "$userDetails._id",
+            name: "$userDetails.name",
+            email: "$userDetails.email",
+            
+            // ✅ THE FIX: Grab pic from 'clientProfileData' first!
+            profilePic: { 
+              $ifNull: ["$clientProfileData.profilePic", "$userDetails.profilePic"] 
+            },
+            
+            phone: { $ifNull: ["$clientProfileData.phone", "$userDetails.phone"] },
+            city: "$clientProfileData.city" 
+          }
+        }
+      }
+    ]);
 
     res.json(activeJobs);
   } catch (err) {
