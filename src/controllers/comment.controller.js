@@ -1,5 +1,22 @@
-const Comment = require("../model/comment"); // Adjust path if needed
-const Post = require("../model/posts"); // To check if post exists
+const Comment = require("../model/comment"); // Ensure path is correct
+const Post = require("../model/posts"); 
+const mongoose = require("mongoose");
+
+// Helper function to find profile picture
+async function getProfilePic(userId, role) {
+  try {
+    let profile = null;
+    if (role === "client") {
+      profile = await mongoose.model("ClientProfile").findOne({ userId: userId });
+    } else if (role === "worker") {
+      profile = await mongoose.model("WorkerProfile").findOne({ userId: userId });
+    }
+    return profile?.profilePic || null;
+  } catch (err) {
+    console.error("Error fetching profile pic:", err);
+    return null;
+  }
+}
 
 // 1. Add a Comment
 exports.addComment = async (req, res) => {
@@ -16,14 +33,25 @@ exports.addComment = async (req, res) => {
     // Create the comment
     const newComment = await Comment.create({
       postId,
-      userId: req.user._id, // From auth middleware
+      userId: req.user._id, 
       text,
     });
 
-    // Populate user details immediately so frontend can display it
-    await newComment.populate("userId", "name role profile profilePic");
+    // Fetch the specific profile picture for the logged-in user
+    const profilePic = await getProfilePic(req.user._id, req.user.role);
 
-    res.status(201).json(newComment);
+    // Construct response manually to ensure frontend gets the image immediately
+    const responseComment = {
+      ...newComment.toObject(),
+      userId: {
+        _id: req.user._id,
+        name: req.user.name,
+        role: req.user.role,
+        profilePic: profilePic // ✅ Sending the image explicitly
+      }
+    };
+
+    res.status(201).json(responseComment);
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Server error" });
@@ -35,18 +63,41 @@ exports.getComments = async (req, res) => {
   try {
     const { postId } = req.params;
 
+    // 1. Get plain comments with basic user info
     const comments = await Comment.find({ postId })
-      .populate("userId", "name role profile profilePic") // Get author details
-      .sort({ createdAt: -1 }); // Newest first
+      .sort({ createdAt: -1 })
+      .populate("userId", "name role") 
+      .lean();
 
-    res.json(comments);
+    // 2. Manually fetch profile pictures for each comment author
+    const commentsWithPics = await Promise.all(
+      comments.map(async (comment) => {
+        const user = comment.userId;
+        
+        // Handle case where user might be deleted
+        if (!user) return comment;
+
+        // Fetch pic based on role
+        const profilePic = await getProfilePic(user._id, user.role);
+
+        return {
+          ...comment,
+          userId: {
+            ...user,
+            profilePic: profilePic // ✅ Attach the found picture
+          }
+        };
+      })
+    );
+
+    res.json(commentsWithPics);
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Server error" });
   }
 };
 
-// 3. Delete a Comment
+// 3. Delete a Comment (No changes needed here)
 exports.deleteComment = async (req, res) => {
   try {
     const { commentId } = req.params;
@@ -57,8 +108,6 @@ exports.deleteComment = async (req, res) => {
       return res.status(404).json({ message: "Comment not found" });
     }
 
-    // Check ownership: Only the comment author can delete it
-    // (Optional: Allow the Post author to delete comments too if you want)
     if (comment.userId.toString() !== req.user._id.toString()) {
       return res.status(403).json({ message: "Not allowed" });
     }
