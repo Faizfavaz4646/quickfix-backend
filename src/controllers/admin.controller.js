@@ -5,7 +5,7 @@ const asyncHandler = require("../utils/asyncHandler");
 
 /* ================= USERS ================= */
 
-// ✅ Wrapped in asyncHandler to remove try-catch
+// Wrapped in asyncHandler to remove try-catch
 exports.getAllUsers = asyncHandler(async (req, res) => {
   const users = await User.find().select("-password");
   res.json(users);
@@ -14,7 +14,7 @@ exports.getAllUsers = asyncHandler(async (req, res) => {
 exports.toggleBlockUser = asyncHandler(async (req, res) => {
   const user = await User.findById(req.params.id);
   
-  // ✅ You can now throw errors directly to the Global Handler
+  
   if (!user) {
     const error = new Error("User not found");
     error.statusCode = 404;

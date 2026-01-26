@@ -12,7 +12,7 @@ exports.getMyNotifications = asyncHandler(async (req, res) => {
     res.json(notifications);
 });
 
-// ✅ Mark as read
+//  Mark as read
 exports.markAsRead = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.user._id;

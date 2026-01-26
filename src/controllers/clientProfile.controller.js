@@ -5,7 +5,7 @@ const JobRequest = require("../model/jobRequests");
 const asyncHandler = require("../utils/asyncHandler");
 
 /* ================= UPDATE / CREATE PROFILE (UPSERT) ================= */
-// ✅ Wrapped in asyncHandler to catch validation or DB errors automatically
+//  Wrapped in asyncHandler to catch validation or DB errors automatically
 exports.upsertClientProfile = asyncHandler(async (req, res) => {
   const userId = req.user._id;
 
@@ -58,7 +58,7 @@ exports.upsertClientProfile = asyncHandler(async (req, res) => {
 });
 
 /* ================= GET CLIENT PROFILE (DASHBOARD DATA) ================= */
-// ✅ Aggregation logic remains the same but error handling is now centralized
+// Aggregation logic remains the same but error handling is now centralized
 exports.getClientProfile = asyncHandler(async (req, res) => {
   const userId = req.user._id;
 

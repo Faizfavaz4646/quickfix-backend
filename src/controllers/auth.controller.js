@@ -3,7 +3,7 @@ const User = require("../model/user");
 const ClientProfile = require("../model/clientProfile");
 const asyncHandler = require("../utils/asyncHandler");
 
-// ✅ Signup rewritten with asyncHandler
+// Signup rewritten with asyncHandler
 exports.signup = asyncHandler(async (req, res) => {
   const { name, emailId, password, role } = req.body;
 
@@ -27,7 +27,7 @@ exports.signup = asyncHandler(async (req, res) => {
   res.status(201).json({ message: "User registered successfully" });
 });
 
-// ✅ Login rewritten with asyncHandler
+// Login rewritten with asyncHandler
 exports.login = asyncHandler(async (req, res) => {
   const { emailId, password } = req.body;
 
@@ -85,7 +85,7 @@ exports.login = asyncHandler(async (req, res) => {
   });
 });
 
-// ✅ Logout (Synchronous, but standardized)
+// Logout (Synchronous, but standardized)
 exports.logout = (req, res) => {
   res.clearCookie("token");
   res.json({ message: "Logout successful" });

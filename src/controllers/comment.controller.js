@@ -15,7 +15,7 @@ async function getProfilePic(userId, role) {
 }
 
 // 1. Add a Comment
-// ✅ Wrapped in asyncHandler to remove try-catch
+// Wrapped in asyncHandler to remove try-catch
 exports.addComment = asyncHandler(async (req, res) => {
   const { postId } = req.params;
   const { text } = req.body;
