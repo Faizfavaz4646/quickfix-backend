@@ -13,17 +13,18 @@ exports.createPost = async (req, res) => {
   }
 };
 
+// 👇 THIS IS THE KEY UPDATE
 exports.getFeed = async (req, res) => {
   try {
+    // 1. Simple populate (Grabs ALL user fields to prevent missing data)
     const posts = await Post.find()
-      // ✅ FIX IS HERE: Added "profile" and "profilePic" to the select string
-      .populate("authorId", "name role profile profilePic")
+      .populate("authorId") 
       .sort({ createdAt: -1 });
 
     res.json(posts);
   } catch (err) {
-    console.error("Feed Error:", err);
-    res.status(500).json({ message: "Server error" });
+    console.error("❌ Feed Error:", err); // This prints the real error in your VS Code terminal
+    res.status(500).json({ message: "Server error fetching feed" });
   }
 };
 
@@ -50,9 +51,8 @@ exports.toggleLike = async (req, res) => {
 
 exports.updatePost = async (req, res) => {
   try {
-    // Note: ensure req.params.id is used to find the post, and authorId checks ownership
     const post = await Post.findOne({
-      _id: req.params.id, // Fixed: Changed from req.user.id (which is likely wrong) to req.params.id
+      _id: req.params.id,
       authorId: req.user._id,
     });
     
