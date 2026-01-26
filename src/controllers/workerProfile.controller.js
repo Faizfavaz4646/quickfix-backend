@@ -11,7 +11,6 @@ exports.upsertWorkerProfile = async (req, res) => {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
-    // Validate request body
     const { error, value } = upsertWorkerProfileSchema.validate(req.body, { abortEarly: false });
     if (error) {
       return res.status(400).json({ message: "Validation error", details: error.details });
@@ -19,15 +18,10 @@ exports.upsertWorkerProfile = async (req, res) => {
 
     const userId = req.user._id;
 
-    // UPSERT profile
     const profile = await WorkerProfile.findOneAndUpdate(
       { userId },
       { $set: value },
-      {
-        new: true,
-        upsert: true,
-        runValidators: true,
-      }
+      { new: true, upsert: true, runValidators: true }
     );
 
     return res.status(200).json(profile);
@@ -39,17 +33,13 @@ exports.upsertWorkerProfile = async (req, res) => {
 
 /**
  * Get logged-in worker's profile
- * Auth required
  */
 exports.getWorkerProfile = async (req, res) => {
   try {
     if (!req.user || !req.user._id) {
       return res.status(401).json({ message: "Unauthorized" });
     }
-
     const profile = await WorkerProfile.findOne({ userId: req.user._id });
-
-    // Return null if profile does not exist
     return res.status(200).json(profile || null);
   } catch (err) {
     console.error("Fetch worker profile failed:", err);
@@ -63,7 +53,6 @@ exports.getWorkerProfile = async (req, res) => {
 exports.getWorkerProfileById = async (req, res) => {
   try {
     const worker = await WorkerProfile.findById(req.params.id)
-      // 1. FIX: Ask for 'emailId', not 'email'
       .populate("userId", "name emailId profilePic") 
       .lean();
 
@@ -73,9 +62,10 @@ exports.getWorkerProfileById = async (req, res) => {
 
     return res.status(200).json({
       ...worker,
-     
       name: worker.userId?.name || "Service Provider",
       email: worker.userId?.emailId || "", 
+      // Fallback for profile pic if not in profile doc
+      profilePic: worker.profilePic || worker.userId?.profilePic || "", 
       userId: worker.userId?._id, 
     });
   } catch (err) {
@@ -85,8 +75,7 @@ exports.getWorkerProfileById = async (req, res) => {
 };
 
 /**
- * Get worker profile by USER ID (internal use)
- * Auth required
+ * Get worker profile by USER ID (internal)
  */
 exports.getWorkerByUserId = async (req, res) => {
   try {
@@ -111,40 +100,117 @@ exports.getWorkerByUserId = async (req, res) => {
 /**
  * Search workers (public)
  * Query: profession, location
- * Returns flattened data for frontend
+ * ✅ UPDATED: Includes Ratings from Profile
  */
 exports.searchWorkers = async (req, res) => {
   try {
     const { profession, location } = req.query;
-    const query = {};
+    
+    const pipeline = [];
 
-    if (profession) query.profession = new RegExp(profession, "i");
-    if (location) {
-      query.$or = [
-        { city: new RegExp(location, "i") },
-        { district: new RegExp(location, "i") },
-        { state: new RegExp(location, "i") },
-      ];
+    // 1. Filter by Profession
+    if (profession) {
+      pipeline.push({
+        $match: { profession: { $regex: new RegExp(profession, "i") } }
+      });
     }
 
-    const workers = await WorkerProfile.find(query)
-      .populate("userId", "name email")
-      .lean();
+    // 2. Filter by Location
+    if (location) {
+      pipeline.push({
+        $match: {
+          $or: [
+            { city: { $regex: new RegExp(location, "i") } },
+            { district: { $regex: new RegExp(location, "i") } },
+            { state: { $regex: new RegExp(location, "i") } },
+          ]
+        }
+      });
+    }
 
-    // Flatten user data for frontend
-    const formattedWorkers = workers.map((worker) => ({
-      ...worker,
-      name: worker.userId?.name || "",
-      email: worker.userId?.email || "",
-      userId: worker.userId?._id,
-    }));
+    // 3. Lookup User Info
+    pipeline.push({
+      $lookup: {
+        from: "users",
+        localField: "userId",
+        foreignField: "_id",
+        as: "userData"
+      }
+    });
+    pipeline.push({ $unwind: { path: "$userData", preserveNullAndEmptyArrays: true } });
 
-    return res.status(200).json(formattedWorkers);
+    // 4. Lookup Reviews (For Rating)
+    pipeline.push({
+      $lookup: {
+        from: "reviews",
+        localField: "userId",
+        foreignField: "workerId",
+        as: "workerReviews"
+      }
+    });
+
+    // 5. 🔥 NEW: Lookup Completed Jobs
+    // This connects WorkerProfile.userId -> JobRequest.workerId
+    pipeline.push({
+      $lookup: {
+        from: "jobrequests", // Must match collection name in MongoDB
+        let: { workerId: "$userId" },
+        pipeline: [
+          { 
+            $match: { 
+              $expr: { 
+                $and: [
+                  { $eq: ["$workerId", "$$workerId"] }, // Match Worker
+                  { $eq: ["$status", "completed"] }     // Only count COMPLETED jobs
+                ]
+              } 
+            } 
+          }
+        ],
+        as: "completedJobsData"
+      }
+    });
+
+    // 6. Calculate & Flatten Fields
+    pipeline.push({
+      $addFields: {
+        calculatedAvg: { $avg: "$workerReviews.rating" },
+        calculatedCount: { $size: "$workerReviews" },
+        
+        // 🔥 Count the array of completed jobs found
+        jobsCompletedCount: { $size: "$completedJobsData" },
+
+        name: { $ifNull: ["$userData.name", "Service Provider"] },
+        finalProfilePic: { $ifNull: ["$profilePic", "$userData.profilePic"] }
+      }
+    });
+
+    // 7. Final Project
+    pipeline.push({
+      $project: {
+        _id: 1,
+        userId: 1,
+        name: 1,
+        profession: 1,
+        city: 1,
+        district: 1,
+        finalProfilePic: 1,
+        averageRating: { $ifNull: [{ $round: ["$calculatedAvg", 1] }, 0] },
+        totalReviews: "$calculatedCount",
+        jobsDone: "$jobsCompletedCount" // ✅ Send this new field to frontend
+      }
+    });
+
+    const workers = await WorkerProfile.aggregate(pipeline);
+
+    return res.status(200).json(workers);
+
   } catch (err) {
     console.error("Worker search failed:", err);
     return res.status(500).json({ message: "Search failed" });
   }
 };
+
 exports.getWorkerByUserIdParam = async (req, res) => {
   try {
     const { userId } = req.query;
@@ -153,8 +219,6 @@ exports.getWorkerByUserIdParam = async (req, res) => {
       return res.status(400).json({ message: "User ID required" });
     }
 
-    // Find the worker profile linked to this User ID
-    // We return an array because your frontend checks for workers[0]
     const worker = await WorkerProfile.find({ userId })
       .populate("userId", "name email profilePic")
       .lean();
@@ -163,14 +227,14 @@ exports.getWorkerByUserIdParam = async (req, res) => {
       return res.status(404).json({ message: "Worker not found" });
     }
 
-    // Flatten data if needed, or return as is
-    // This matches the structure expected by your frontend
     const formattedWorker = worker.map(w => ({
         ...w,
         name: w.userId?.name,
         email: w.userId?.email,
         profilePic: w.userId?.profilePic,
-        userId: w.userId?._id
+        userId: w.userId?._id,
+        averageRating: w.averageRating || 0,
+        totalReviews: w.totalReviews || 0
     }));
 
     return res.status(200).json(formattedWorker);

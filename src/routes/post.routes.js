@@ -5,7 +5,8 @@ const {
     getFeed, 
     updatePost, 
     deletePost, 
-    toggleLike 
+    toggleLike, 
+    getMyPosts
 } = require("../controllers/post.controller");
 
 const router = express.Router();
@@ -13,6 +14,8 @@ const router = express.Router();
 // 1. Create & Get (No ID needed)
 router.post("/", userAuth, createPost);
 router.get("/", userAuth, getFeed);
+
+router.get("/me",userAuth,getMyPosts)
 
 // 2. Update Post (Needs ID)
 // ❌ Old: router.patch("/", ...);

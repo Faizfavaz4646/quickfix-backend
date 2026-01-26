@@ -65,12 +65,10 @@ exports.getClientProfile = async (req, res) => {
 
     // --- STEP 1: FETCH JOBS (AGGREGATION) ---
     const allJobs = await JobRequest.aggregate([
-      // 1. Find jobs for this client (Cast ID to ObjectId)
+      // 1. Find jobs for this client
       { $match: { clientId: new mongoose.Types.ObjectId(userId) } },
-      
       // 2. Sort Newest First
       { $sort: { createdAt: -1 } },
-
       // 3. Lookup Worker User Info (Name)
       {
         $lookup: {
@@ -81,7 +79,6 @@ exports.getClientProfile = async (req, res) => {
         }
       },
       { $unwind: "$workerUser" }, 
-
       // 4. Lookup Worker Profile Info (Picture)
       {
         $lookup: {
@@ -97,7 +94,6 @@ exports.getClientProfile = async (req, res) => {
           preserveNullAndEmptyArrays: true 
         } 
       },
-
       // 5. Shape the Data
       {
         $project: {
@@ -120,7 +116,6 @@ exports.getClientProfile = async (req, res) => {
       }
     ]);
 
-    // Separate jobs
     const requests = allJobs.filter(j => j.status === "pending");
     const activeJobs = allJobs.filter(j => j.status === "accepted" || j.status === "ongoing");
     const completedJobs = allJobs.filter(j => j.status === "completed" || j.status === "rejected");
@@ -133,14 +128,18 @@ exports.getClientProfile = async (req, res) => {
     const responseData = profile ? profile.toObject() : {};
 
     return res.status(200).json({
-      // Profile Fields
-      phone: responseData.phone || "",
-      city: responseData.city || "",
-      profilePic: responseData.profilePic || "", 
-      
-      // User Fields
-      name: profile?.userId?.name || userData.name,
-      email: profile?.userId?.emailId || userData.emailId,
+      // ✅ FIX: Use "profile" key and spread responseData to include ALL fields
+      profile: {
+        ...responseData, // This automatically includes: district, state, zip, phone, city, etc.
+        name: profile?.userId?.name || userData.name,
+        email: profile?.userId?.emailId || userData.emailId,
+        
+        // Explicit defaults (just in case fields are missing in DB)
+        city: responseData.city || "",
+        district: responseData.district || "", 
+        state: responseData.state || "",
+        profilePic: responseData.profilePic || "",
+      },
 
       // Job Lists
       requests,
