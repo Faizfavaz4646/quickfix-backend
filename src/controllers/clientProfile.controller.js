@@ -1,42 +1,38 @@
-const ClientProfile = require("../model/clientProfile"); // Ensure casing matches your file
+const mongoose = require("mongoose");
 const User = require("../model/user");
-const JobRequest = require("../model/jobRequests");
+const ClientProfile = require("../model/clientProfile");
+const JobRequest = require("../model/jobRequests"); 
 
+/* ================= UPDATE / CREATE PROFILE (UPSERT) ================= */
 exports.upsertClientProfile = async (req, res) => {
   try {
     const userId = req.user._id;
 
-    // --- 1. Update User Name (if provided) ---
-    // We store the updated name to send it back later
+    // 1. Update User Name (if provided)
     let currentName = req.user.name; 
     if (req.body.name) {
       await User.findByIdAndUpdate(userId, { name: req.body.name });
       currentName = req.body.name;
     }
 
-    // --- 2. Update Client Profile ---
+    // 2. Update Client Profile Fields
     const allowedFields = [
       "phone", "gender", "state", "district", "city", "zip", "profilePic", "preferences",
     ];
 
     const updateData = {};
     allowedFields.forEach((field) => {
-      // Safety: Allow empty strings "", but ignore undefined
       if (req.body[field] !== undefined) {
         updateData[field] = req.body[field];
       }
     });
 
-    // Handle case where only name is updated but no profile fields
+    // Handle case where only name is updated
     if (Object.keys(updateData).length === 0) {
       if (req.body.name) {
-        // ✅ FIX 1: Return consistent structure even if only name changed
         return res.status(200).json({ 
           message: "Name updated successfully",
-          profile: { 
-             // We return a minimal profile object so frontend doesn't break
-             name: currentName 
-          }
+          profile: { name: currentName }
         });
       }
       return res.status(400).json({ message: "No valid fields to update" });
@@ -48,16 +44,12 @@ exports.upsertClientProfile = async (req, res) => {
       { new: true, upsert: true, runValidators: true }
     );
 
-    // ✅ FIX 2: Merge the Name into the response
-    // The 'profile' doc doesn't have the name, so we add it manually
-    const responseObj = {
-      ...profile.toObject(),
-      name: currentName, 
-    };
-
     res.status(200).json({
       message: "Profile updated successfully",
-      profile: responseObj,
+      profile: {
+        ...profile.toObject(),
+        name: currentName, 
+      },
     });
     
   } catch (err) {
@@ -66,62 +58,98 @@ exports.upsertClientProfile = async (req, res) => {
   }
 };
 
+/* ================= GET CLIENT PROFILE (DASHBOARD DATA) ================= */
 exports.getClientProfile = async (req, res) => {
   try {
     const userId = req.user._id;
 
-    // --- STEP 1: FETCH JOBS (The missing part) ---
-    // We search the 'JobRequest' collection for any job linked to this client
-    const allJobs = await JobRequest.find({ clientId: userId })
-      .populate("workerId", "name profession profilePic") // Get worker details for the card
-      .sort({ createdAt: -1 });
+    // --- STEP 1: FETCH JOBS (AGGREGATION) ---
+    const allJobs = await JobRequest.aggregate([
+      // 1. Find jobs for this client (Cast ID to ObjectId)
+      { $match: { clientId: new mongoose.Types.ObjectId(userId) } },
+      
+      // 2. Sort Newest First
+      { $sort: { createdAt: -1 } },
 
-    // Separate jobs into categories for the dashboard
+      // 3. Lookup Worker User Info (Name)
+      {
+        $lookup: {
+          from: "users",
+          localField: "workerId",
+          foreignField: "_id",
+          as: "workerUser"
+        }
+      },
+      { $unwind: "$workerUser" }, 
+
+      // 4. Lookup Worker Profile Info (Picture)
+      {
+        $lookup: {
+          from: "workerprofiles", 
+          localField: "workerId",
+          foreignField: "userId",
+          as: "workerProfile"
+        }
+      },
+      { 
+        $unwind: { 
+          path: "$workerProfile", 
+          preserveNullAndEmptyArrays: true 
+        } 
+      },
+
+      // 5. Shape the Data
+      {
+        $project: {
+          _id: 1,
+          title: 1,
+          description: 1,
+          address: 1,
+          status: 1,
+          scheduledDate: 1,
+          clientPhone: 1,
+          createdAt: 1,
+          workerId: {
+            _id: "$workerUser._id",
+            name: "$workerUser.name",
+            // Priority: WorkerProfile Pic -> User Pic
+            profilePic: { $ifNull: ["$workerProfile.profilePic", "$workerUser.profilePic"] },
+            profession: "$workerProfile.profession"
+          }
+        }
+      }
+    ]);
+
+    // Separate jobs
     const requests = allJobs.filter(j => j.status === "pending");
     const activeJobs = allJobs.filter(j => j.status === "accepted" || j.status === "ongoing");
     const completedJobs = allJobs.filter(j => j.status === "completed" || j.status === "rejected");
 
     // --- STEP 2: FETCH PROFILE ---
-    const profile = await ClientProfile.findOne({ userId })
-      .populate("userId", "name emailId");
+    const profile = await ClientProfile.findOne({ userId }).populate("userId", "name emailId");
+    const userData = await User.findById(userId);
 
-    // --- STEP 3: CONSTRUCT RESPONSE ---
-    
-    // CASE A: Profile Found
-    if (profile) {
-      return res.status(200).json({
-        ...profile.toObject(),
-        name: profile.userId?.name,
-        email: profile.userId?.emailId,
-        // ✅ Add the jobs here so the dashboard works
-        requests,
-        activeJobs,
-        completedJobs
-      });
-    }
+    // --- STEP 3: RETURN RESPONSE ---
+    const responseData = profile ? profile.toObject() : {};
 
-    // CASE B: Profile Not Found (New User)
-    // We still return the jobs (even if profile is empty) + User data
-    const user = await User.findById(userId);
-    
     return res.status(200).json({
-      // Basic Fields
-      phone: "", 
-      gender: "", 
-      state: "", 
-      district: "", 
-      city: "", 
-      zip: "", 
-      profilePic: "",
-      name: user?.name,
-      email: user?.emailId,
+      // Profile Fields
+      phone: responseData.phone || "",
+      city: responseData.city || "",
+      profilePic: responseData.profilePic || "", 
+      
+      // User Fields
+      name: profile?.userId?.name || userData.name,
+      email: profile?.userId?.emailId || userData.emailId,
+
+      // Job Lists
       requests,
       activeJobs,
       completedJobs
     });
 
   } catch (err) {
-    console.error("Get Profile Error:", err);
+    console.error("Get Client Profile Error:", err);
     res.status(500).json({ message: "Internal server error" });
   }
 };
