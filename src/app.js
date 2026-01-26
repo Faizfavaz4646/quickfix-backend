@@ -31,8 +31,11 @@ app.use("/worker", workerProfileRouter);
 app.use("/job-requests", jobRequestRoutes);
 app.use("/notifications", notificationRoutes);
 app.use("/posts",postsRoutes);
-app.use("/admin",adminRoutes);
 app.use("/reviews",reviewRoutes);
-app.use("/comments",commentRoutes)
+app.use("/comments",commentRoutes);
+app.use("/admin",adminRoutes);
+// ✅ Global Error Handler must be the last middleware
+const errorHandler = require("./middlewares/error.middleware");
+app.use(errorHandler);
 
 module.exports = app;

@@ -1,43 +1,34 @@
-const Notification =require("../model/notifications");
+const Notification = require("../model/notifications");
+const asyncHandler = require("../utils/asyncHandler");
 
-//get user notifications
+// ✅ Get user notifications
+exports.getMyNotifications = asyncHandler(async (req, res) => {
+    const userId = req.user._id;
 
-exports.getMyNotifications = async (req,res)=>{
-    try {
-        console.log(Notification.schema.paths);
+    // Fetch notifications for the logged-in user, sorted by newest first
+    const notifications = await Notification.find({ userId })
+        .sort({ createdAt: -1 });
 
+    res.json(notifications);
+});
 
-        const userId = req.user._id;
-        const notifications = await Notification.find({userId})
-        .sort({createdAt:-1})
-        res.json(notifications);
-    }catch(err){
-        console.error("Fetch notifications failed:",err);
-        res.status(500).json({message:"Server error"})
-        
-
-    }
-};
-  //mark as read
-
-  exports.markAsRead = async (req, res) => {
-  try {
+// ✅ Mark as read
+exports.markAsRead = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.user._id;
 
     const notification = await Notification.findOneAndUpdate(
-      { _id: id, userId },
-      { isRead: true },
-      { new: true }
+        { _id: id, userId },
+        { isRead: true },
+        { new: true }
     );
 
+    // If no notification found or doesn't belong to the user, throw 404
     if (!notification) {
-      return res.status(404).json({ message: "Notification not found" });
+        const error = new Error("Notification not found");
+        error.statusCode = 404;
+        throw error; // Caught by Global Error Handler
     }
 
     res.json(notification);
-  } catch (err) {
-    console.error("Mark notification read failed:", err);
-    res.status(500).json({ message: "Server error" });
-  }
-};
+});
