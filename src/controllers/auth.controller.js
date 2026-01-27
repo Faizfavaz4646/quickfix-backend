@@ -90,3 +90,36 @@ exports.logout = (req, res) => {
   res.clearCookie("token");
   res.json({ message: "Logout successful" });
 };
+//change password
+exports.changePassword = asyncHandler(async (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+  const userId = req.user._id; // Comes from auth middleware
+
+  // 1. Find User (explicitly select password if it's set to select: false in schema)
+  const user = await User.findById(userId).select("+password");
+
+  if (!user) {
+    res.status(404);
+    throw new Error("User not found");
+  }
+
+  // 2. Check if Current Password matches
+  const isMatch = await bcrypt.compare(currentPassword, user.password);
+  if (!isMatch) {
+    res.status(401);
+    throw new Error("Invalid current password");
+  }
+
+  // 3. Hash the New Password
+  const salt = await bcrypt.genSalt(10);
+  const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+  // 4. Update Database
+  user.password = hashedPassword;
+  await user.save(); // Using save() triggers any pre-save hooks if you have them, otherwise updateOne is fine
+
+  res.status(200).json({
+    success: true,
+    message: "Password updated successfully",
+  });
+});
