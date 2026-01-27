@@ -3,9 +3,9 @@ const WorkerProfile = require("../model/workerProfile");
 const { upsertWorkerProfileSchema } = require("../utils/validation");
 const asyncHandler = require("../utils/asyncHandler");
 
-/* ================= CREATE or UPDATE PROFILE (UPSERT) ================= */
+/* ================= 1. CREATE or UPDATE PROFILE (UPSERT) ================= */
 exports.upsertWorkerProfile = asyncHandler(async (req, res) => {
-  // 1. Joi Validation
+  // Joi Validation
   const { error, value } = upsertWorkerProfileSchema.validate(req.body, { abortEarly: false });
   if (error) {
     const err = new Error("Validation error");
@@ -25,17 +25,17 @@ exports.upsertWorkerProfile = asyncHandler(async (req, res) => {
   res.status(200).json(profile);
 });
 
-/* ================= GET LOGGED-IN WORKER PROFILE ================= */
+/* ================= 2. GET LOGGED-IN WORKER PROFILE ================= */
 exports.getWorkerProfile = asyncHandler(async (req, res) => {
   const profile = await WorkerProfile.findOne({ userId: req.user._id });
   res.status(200).json(profile || null);
 });
 
-/* ================= GET WORKER BY PROFILE ID (For Profile Page) ================= */
+/* ================= 3. GET WORKER BY PROFILE ID (For Profile Page) ================= */
 exports.getWorkerProfileById = asyncHandler(async (req, res) => {
-  // 1. Search using the USER ID (since that is what your URL passes: /workerprofile/USER_ID)
+  // Search using the USER ID (since URL passes: /workerprofile/USER_ID)
   const worker = await WorkerProfile.findOne({ userId: req.params.id })
-    // ✅ FIX 1: Ask for 'emailId' explicitly. Mongoose won't return it otherwise.
+    // ✅ FIX: Ask for 'emailId' explicitly.
     .populate("userId", "name email emailId profilePic") 
     .lean();
 
@@ -48,27 +48,27 @@ exports.getWorkerProfileById = asyncHandler(async (req, res) => {
   res.status(200).json({
     ...worker,
     name: worker.name || worker.userId?.name || "Service Provider",
-    // ✅ FIX 2: Check for emailId
+    // ✅ FIX: Check for emailId
     email: worker.userId?.email || worker.userId?.emailId || "", 
-    // ✅ FIX 3: Robust Image Logic (Worker > User > Empty)
+    // ✅ FIX: Robust Image Logic (Worker > User > Empty)
     profilePic: worker.profilePic || worker.userId?.profilePic || "", 
     userId: worker.userId?._id, 
   });
 });
 
-/* ================= SEARCH WORKERS (Public Aggregation) ================= */
+/* ================= 4. SEARCH WORKERS (Public Aggregation) ================= */
 exports.searchWorkers = asyncHandler(async (req, res) => {
   const { profession, location } = req.query;
   const pipeline = [];
 
-  // 1. Filter by Profession
+  // Filter by Profession
   if (profession) {
     pipeline.push({
       $match: { profession: { $regex: new RegExp(profession, "i") } }
     });
   }
 
-  // 2. Filter by Location
+  // Filter by Location
   if (location) {
     pipeline.push({
       $match: {
@@ -81,7 +81,7 @@ exports.searchWorkers = asyncHandler(async (req, res) => {
     });
   }
 
-  // 3. Lookup Data & Reviews
+  // Lookup Data & Reviews
   pipeline.push(
     { $lookup: { from: "users", localField: "userId", foreignField: "_id", as: "userData" } },
     { $unwind: { path: "$userData", preserveNullAndEmptyArrays: true } },
@@ -98,19 +98,18 @@ exports.searchWorkers = asyncHandler(async (req, res) => {
     }
   );
 
-  // 4. Calculate Fields
+  // Calculate Fields
   pipeline.push({
     $addFields: {
       calculatedAvg: { $avg: "$workerReviews.rating" },
       calculatedCount: { $size: "$workerReviews" },
       jobsCompletedCount: { $size: "$completedJobsData" },
       name: { $ifNull: ["$userData.name", "Service Provider"] },
-      // Logic: If WorkerProfile has a pic, use it. Else use User pic.
       finalProfilePic: { $ifNull: ["$profilePic", "$userData.profilePic"] }
     }
   });
 
-  // 5. Final Projection
+  // Final Projection
   pipeline.push({
     $project: {
       _id: 1,
@@ -119,7 +118,6 @@ exports.searchWorkers = asyncHandler(async (req, res) => {
       profession: 1,
       city: 1,
       district: 1,
-      // Map 'finalProfilePic' to 'profilePic' so frontend finds it
       profilePic: "$finalProfilePic", 
       averageRating: { $ifNull: [{ $round: ["$calculatedAvg", 1] }, 0] },
       totalReviews: "$calculatedCount",
@@ -131,7 +129,7 @@ exports.searchWorkers = asyncHandler(async (req, res) => {
   res.status(200).json(workers);
 });
 
-/* ================= GET WORKER BY USER ID QUERY ================= */
+/* ================= 5. GET WORKER BY USER ID QUERY ================= */
 exports.getWorkerByUserIdParam = asyncHandler(async (req, res) => {
   const { userId } = req.query;
 
@@ -142,7 +140,6 @@ exports.getWorkerByUserIdParam = asyncHandler(async (req, res) => {
   }
 
   const worker = await WorkerProfile.find({ userId })
-    // ✅ FIX 4: Added 'emailId' here too
     .populate("userId", "name email emailId profilePic")
     .lean();
 
@@ -155,9 +152,7 @@ exports.getWorkerByUserIdParam = asyncHandler(async (req, res) => {
   const formattedWorker = worker.map(w => ({
       ...w,
       name: w.userId?.name,
-      // ✅ FIX 5: Fallback to emailId
       email: w.userId?.email || w.userId?.emailId, 
-      // ✅ FIX 6: Prioritize Worker Profile Image
       profilePic: w.profilePic || w.userId?.profilePic || "", 
       userId: w.userId?._id,
       averageRating: w.averageRating || 0,
@@ -165,4 +160,65 @@ exports.getWorkerByUserIdParam = asyncHandler(async (req, res) => {
   }));
 
   res.status(200).json(formattedWorker);
+});
+
+/* ================= 6. GET TOP RATED WORKERS (For Sidebar) ================= */
+// Route: GET /api/workers?sort=-rating&limit=3
+exports.getTopWorkers = asyncHandler(async (req, res) => {
+  const limit = parseInt(req.query.limit) || 5;
+  const sortParam = req.query.sort || '-rating';
+
+  // 1. Determine Sort Order
+  let sortStage = {};
+  if (sortParam === '-rating') {
+    sortStage = { averageRating: -1 }; // Highest Rating First
+  } else if (sortParam === 'rating') {
+    sortStage = { averageRating: 1 };
+  } else {
+    sortStage = { createdAt: -1 };
+  }
+
+  const workers = await WorkerProfile.aggregate([
+    // A. Filter (Optional: You can add { isVerified: true } here later)
+    { $match: { averageRating: { $exists: true } } }, 
+
+    // B. Sort
+    { $sort: sortStage },
+
+    // C. Limit
+    { $limit: limit },
+
+    // D. Join with Users to get Name/Pic
+    {
+      $lookup: {
+        from: "users",
+        localField: "userId",
+        foreignField: "_id",
+        as: "userDoc"
+      }
+    },
+    { $unwind: "$userDoc" },
+
+    // E. Project exact fields for Frontend Sidebar
+    {
+      $project: {
+        // IMPORTANT: We return the 'userId' as '_id' because 
+        // the frontend Link is: /client/workerprofile/${worker._id}
+        // and that page expects a User ID, not a WorkerProfile ID.
+        _id: "$userId", 
+        name: "$userDoc.name",
+        profession: 1,
+        rating: "$averageRating",
+        // Image Logic: WorkerProfile Pic > User Profile Pic > null
+        profilePic: { $ifNull: ["$profilePic", "$userDoc.profilePic"] }
+      }
+    }
+  ]);
+
+  // Return structure matching: response.data.data
+  res.status(200).json({
+    success: true,
+    count: workers.length,
+    data: workers
+  });
 });
