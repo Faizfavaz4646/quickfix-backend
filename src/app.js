@@ -11,7 +11,8 @@ const notificationRoutes = require("./routes/notification.routes");
 const postsRoutes = require("./routes/post.routes");
 const adminRoutes = require("./routes/admin.routes");
 const reviewRoutes = require("./routes/reviews.routes")
-const commentRoutes = require("./routes/comment.routes")
+const commentRoutes = require("./routes/comment.routes");
+const errorHandler = require("./middlewares/error.middleware");
 const app = express();
 
 // Middlewares
@@ -34,8 +35,6 @@ app.use("/posts",postsRoutes);
 app.use("/reviews",reviewRoutes);
 app.use("/comments",commentRoutes);
 app.use("/admin",adminRoutes);
-// ✅ Global Error Handler must be the last middleware
-const errorHandler = require("./middlewares/error.middleware");
 app.use(errorHandler);
 
 module.exports = app;
