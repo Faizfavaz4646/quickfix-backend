@@ -31,10 +31,12 @@ exports.getWorkerProfile = asyncHandler(async (req, res) => {
   res.status(200).json(profile || null);
 });
 
-/* ================= GET PUBLIC PROFILE BY ID ================= */
+/* ================= GET WORKER BY PROFILE ID (For Profile Page) ================= */
 exports.getWorkerProfileById = asyncHandler(async (req, res) => {
-  const worker = await WorkerProfile.findById(req.params.id)
-    .populate("userId", "name emailId profilePic") 
+  // 1. Search using the USER ID (since that is what your URL passes: /workerprofile/USER_ID)
+  const worker = await WorkerProfile.findOne({ userId: req.params.id })
+    // ✅ FIX 1: Ask for 'emailId' explicitly. Mongoose won't return it otherwise.
+    .populate("userId", "name email emailId profilePic") 
     .lean();
 
   if (!worker) {
@@ -45,15 +47,16 @@ exports.getWorkerProfileById = asyncHandler(async (req, res) => {
 
   res.status(200).json({
     ...worker,
-    name: worker.userId?.name || "Service Provider",
-    email: worker.userId?.emailId || "", 
+    name: worker.name || worker.userId?.name || "Service Provider",
+    // ✅ FIX 2: Check for emailId
+    email: worker.userId?.email || worker.userId?.emailId || "", 
+    // ✅ FIX 3: Robust Image Logic (Worker > User > Empty)
     profilePic: worker.profilePic || worker.userId?.profilePic || "", 
     userId: worker.userId?._id, 
   });
 });
 
 /* ================= SEARCH WORKERS (Public Aggregation) ================= */
-
 exports.searchWorkers = asyncHandler(async (req, res) => {
   const { profession, location } = req.query;
   const pipeline = [];
@@ -102,6 +105,7 @@ exports.searchWorkers = asyncHandler(async (req, res) => {
       calculatedCount: { $size: "$workerReviews" },
       jobsCompletedCount: { $size: "$completedJobsData" },
       name: { $ifNull: ["$userData.name", "Service Provider"] },
+      // Logic: If WorkerProfile has a pic, use it. Else use User pic.
       finalProfilePic: { $ifNull: ["$profilePic", "$userData.profilePic"] }
     }
   });
@@ -115,7 +119,8 @@ exports.searchWorkers = asyncHandler(async (req, res) => {
       profession: 1,
       city: 1,
       district: 1,
-      finalProfilePic: 1,
+      // Map 'finalProfilePic' to 'profilePic' so frontend finds it
+      profilePic: "$finalProfilePic", 
       averageRating: { $ifNull: [{ $round: ["$calculatedAvg", 1] }, 0] },
       totalReviews: "$calculatedCount",
       jobsDone: "$jobsCompletedCount"
@@ -137,7 +142,8 @@ exports.getWorkerByUserIdParam = asyncHandler(async (req, res) => {
   }
 
   const worker = await WorkerProfile.find({ userId })
-    .populate("userId", "name email profilePic")
+    // ✅ FIX 4: Added 'emailId' here too
+    .populate("userId", "name email emailId profilePic")
     .lean();
 
   if (!worker || worker.length === 0) {
@@ -149,8 +155,10 @@ exports.getWorkerByUserIdParam = asyncHandler(async (req, res) => {
   const formattedWorker = worker.map(w => ({
       ...w,
       name: w.userId?.name,
-      email: w.userId?.email,
-      profilePic: w.userId?.profilePic,
+      // ✅ FIX 5: Fallback to emailId
+      email: w.userId?.email || w.userId?.emailId, 
+      // ✅ FIX 6: Prioritize Worker Profile Image
+      profilePic: w.profilePic || w.userId?.profilePic || "", 
       userId: w.userId?._id,
       averageRating: w.averageRating || 0,
       totalReviews: w.totalReviews || 0

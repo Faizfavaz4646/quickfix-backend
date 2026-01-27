@@ -48,3 +48,66 @@ exports.createReview = asyncHandler(async (req, res) => {
     review: newReview 
   });
 });
+exports.getReviewsByWorkerId = asyncHandler(async (req, res) => {
+  const { workerId } = req.params;
+
+  const reviews = await Review.aggregate([
+    // 1. Find reviews for this worker
+    { 
+      $match: { 
+        workerId: new mongoose.Types.ObjectId(workerId) 
+      } 
+    },
+    
+    // 2. Sort Newest First
+    { $sort: { createdAt: -1 } },
+
+    // 3. LOOKUP 1: Get User Name from 'users' collection
+    {
+      $lookup: {
+        from: "users",          // Collection name for Users
+        localField: "clientId",
+        foreignField: "_id",
+        as: "userDoc"
+      }
+    },
+    { $unwind: "$userDoc" },    // Flatten the array
+
+    // 4. LOOKUP 2: Get Profile Pic from 'clientprofiles' collection
+    // ⚠️ CRITICAL: Ensure 'clientprofiles' matches your actual MongoDB collection name
+    {
+      $lookup: {
+        from: "clientprofiles", // The collection where the image lives
+        localField: "clientId", // The User ID in the review
+        foreignField: "userId", // The User ID in the profile
+        as: "profileDoc"
+      }
+    },
+    // We use preserveNullAndEmptyArrays in case a profile hasn't been created yet
+    {
+      $unwind: {
+        path: "$profileDoc",
+        preserveNullAndEmptyArrays: true
+      }
+    },
+
+    // 5. PROJECT: Shape the data exactly how the Frontend expects it
+    {
+      $project: {
+        _id: 1,
+        rating: 1,
+        // Handle both 'comment' and 'review' field names just in case
+        comment: { $ifNull: ["$comment", "$review"] },
+        createdAt: 1,
+        clientId: {
+          _id: "$userDoc._id",
+          name: "$userDoc.name",
+          // Priority: 1. ClientProfile Pic, 2. User Pic, 3. Null
+          profilePic: { $ifNull: ["$profileDoc.profilePic", "$userDoc.profilePic"] }
+        }
+      }
+    }
+  ]);
+
+  res.status(200).json(reviews);
+});

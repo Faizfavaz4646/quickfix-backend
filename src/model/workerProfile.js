@@ -2,7 +2,6 @@ const mongoose = require("mongoose");
 
 const workerProfileSchema = new mongoose.Schema(
   {
-  
     // RELATION
     userId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -17,17 +16,17 @@ const workerProfileSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
-   name: {
-      type:String,
-      required:true,
-      trim:true,
-
+    
+    name: {
+      type: String,
+      required: true,
+      trim: true,
     },
 
     phone: {
       type: String,
       required: true,
-      match: /^[0-9]{10}$/, 
+      match: /^[0-9]{10}$/,
     },
 
     gender: {
@@ -53,12 +52,10 @@ const workerProfileSchema = new mongoose.Schema(
 
     zip: {
       type: String,
-      match: /^[0-9]{6}$/, 
+      match: /^[0-9]{6}$/,
     },
 
-
     // WORK DETAILS
-    
     schedule: {
       type: String,
       trim: true,
@@ -74,9 +71,7 @@ const workerProfileSchema = new mongoose.Schema(
       },
     ],
 
-  
     // JOB FLOW
-
     requests: [
       {
         type: mongoose.Schema.Types.ObjectId,
@@ -98,9 +93,7 @@ const workerProfileSchema = new mongoose.Schema(
       },
     ],
 
-  
     // NOTIFICATIONS
- 
     notifications: [
       {
         message: {
@@ -118,9 +111,19 @@ const workerProfileSchema = new mongoose.Schema(
       },
     ],
 
+    // ✅ NEW FIELDS: THESE ARE REQUIRED FOR YOUR RATING SYSTEM TO WORK
+    averageRating: {
+      type: Number,
+      default: 0,
+      index: true, // Helps with sorting top-rated workers
+    },
 
-    // RATINGS & REVIEWS
-  
+    totalReviews: {
+      type: Number,
+      default: 0,
+    },
+
+    // --- LEGACY ARRAYS (Keep these if other parts of your app use them) ---
     ratings: [
       {
         userId: {
