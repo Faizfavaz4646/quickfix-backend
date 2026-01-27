@@ -9,13 +9,25 @@ const { upsertWorkerProfileSchema } = require("../utils/validation");
 const workerProfileController = require("../controllers/workerProfile.controller");
 
 /**
- * PUBLIC ROUTES (NO AUTH)
+ * ==========================================
+ * PUBLIC ROUTES (NO AUTH REQUIRED)
+ * ==========================================
  */
+
+// 1. Search Workers (by profession/location)
 router.get("/search", workerProfileController.searchWorkers);
 
+// 2. ✅ NEW ROUTE: Top Rated Workers
+// (MUST be before /:id so "top" isn't treated as an ID)
+router.get("/top", workerProfileController.getTopWorkers);
+
 /**
+ * ==========================================
  * AUTHENTICATED WORKER ROUTES
+ * ==========================================
  */
+
+// Get Logged-in Worker's Profile
 router.get(
   "/me",
   userAuth,
@@ -23,7 +35,7 @@ router.get(
   workerProfileController.getWorkerProfile
 );
 
-// Single endpoint for create or update (upsert)
+// Create or Update (Upsert) Profile
 router.post(
   "/upsert",
   userAuth,
@@ -31,6 +43,7 @@ router.post(
   validate(upsertWorkerProfileSchema),
   workerProfileController.upsertWorkerProfile
 );
+
 router.patch(
   "/upsert", 
   userAuth,
@@ -40,15 +53,16 @@ router.patch(
 );
 
 /**
- * ✅ NEW ROUTE: Handle "GET /workers?userId=..." 
- * This prevents the 404 loop.
- * (MUST BE PLACED BEFORE THE /:id ROUTE)
+ * ==========================================
+ * GENERIC GET ROUTES (MUST BE AT THE BOTTOM)
+ * ==========================================
  */
+
+// Handle "GET /workers?userId=..." query
 router.get("/", workerProfileController.getWorkerByUserIdParam);
 
-/**
- * PUBLIC – MUST BE LAST
- */
+// Handle "GET /workers/:id" (Get by Profile ID or User ID)
+// ⚠️ This matches anything like /workers/123, so it must be LAST
 router.get("/:id", workerProfileController.getWorkerProfileById);
 
 module.exports = router;
