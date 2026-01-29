@@ -1,49 +1,57 @@
 require("dotenv").config();
-const http =require("http");
-const {Server}= require("socket.io")
+const http = require("http");
+const { Server } = require("socket.io");
 const connectDB = require("./config/database");
 const app = require("./app");
 const notifications = require("./model/notifications");
 
 const PORT = process.env.PORT || 5001;
 
-//track online users
-const onlineUsers ={};
+// Track online users
+const onlineUsers = {};
 
+// Allowed origins for CORS
+const allowedOrigins = [
+  "http://localhost:3000",      // local frontend
+  process.env.CLIENT_URL        // deployed frontend (Vercel)
+];
+
+// Convert string env to boolean
+const corsCredentials = process.env.CORS_CREDENTIALS === "true";
 
 connectDB()
   .then(() => {
     console.log("Database connection established..!!");
 
-    //HTTP Server for socket.io
-
-    const server =http.createServer(app);
-    const io = new Server(server,{
-     cors:{origin: process.env.CLIENT_URL, credentials:true},
-    });
-    io.on("connection",(socket)=>{
-      console.log("User connected",socket.id);
-
-      //client sends userId after login
-
-      socket.on("register",(userId)=>{
-        onlineUsers[userId]=socket;
-        socket.userId =userId;
-      });
-      socket.on("disconnect",()=>{
-        if(socket.userId) delete onlineUsers[socket.userId];
-        console.log("User disconnected",socket.userId);
-        
-      });
-      
+    // HTTP Server for Socket.IO
+    const server = http.createServer(app);
+    const io = new Server(server, {
+      cors: {
+        origin: allowedOrigins,
+        credentials: corsCredentials,
+      },
     });
 
-    //Helper to emit notifications
+    io.on("connection", (socket) => {
+      console.log("User connected", socket.id);
 
-    global.SendNotificationRealTime =(notification)=>{
-      const socket =onlineUsers[notification.userId.toString()];
-      if(socket && socket.connected){
-        socket.emit("notification",notification)
+      // Client sends userId after login
+      socket.on("register", (userId) => {
+        onlineUsers[userId] = socket;
+        socket.userId = userId;
+      });
+
+      socket.on("disconnect", () => {
+        if (socket.userId) delete onlineUsers[socket.userId];
+        console.log("User disconnected", socket.userId);
+      });
+    });
+
+    // Helper to emit notifications in real-time
+    global.SendNotificationRealTime = (notification) => {
+      const socket = onlineUsers[notification.userId.toString()];
+      if (socket && socket.connected) {
+        socket.emit("notification", notification);
       }
     };
 

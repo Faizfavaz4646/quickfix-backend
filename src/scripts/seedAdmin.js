@@ -18,7 +18,7 @@ const seedAdmin = async () => {
 
     console.log("2. Attempting to connect to MongoDB...");
     await mongoose.connect(mongoUri);
-    console.log("✅ Connected to MongoDB.");
+    console.log("Connected to MongoDB.");
 
     console.log("3. Checking if Admin already exists...");
     const adminExists = await User.findOne({ role: 'admin' });
@@ -34,7 +34,7 @@ const seedAdmin = async () => {
 
     console.log("5. Creating admin object...");
     const adminUser = new User({
-      name: 'Admin', // ✅ Changed from 'System Administrator' to stay under 16 chars
+      name: 'Admin', // Changed from 'System Administrator' to stay under 16 chars
       emailId: adminEmail.toLowerCase(),
       password: hashedPassword,
       role: 'admin',
@@ -45,13 +45,13 @@ const seedAdmin = async () => {
     const result = await adminUser.save();
     
     console.log("-----------------------------------------");
-    console.log("🚀 SUCCESS! ADMIN CREATED");
+    console.log(" SUCCESS! ADMIN CREATED");
     console.log("ID:", result._id);
     console.log("Email:", adminEmail);
     console.log("-----------------------------------------");
 
   } catch (error) {
-    console.error("❌ SEEDING FAILED AT STEP:", error.message);
+    console.error(" SEEDING FAILED AT STEP:", error.message);
   } finally {
     console.log("7. Closing connection...");
     await mongoose.connection.close();
